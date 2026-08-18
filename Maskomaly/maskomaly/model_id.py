@@ -6,18 +6,22 @@ import numpy as np
 import torch
 from torch.nn import functional as F
 
+_RAAS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+for _path in (
+    os.path.join(_RAAS_DIR, "Mask2Former"),
+    os.path.join(_RAAS_DIR, "detectron2"),
+):
+    if _path not in sys.path:
+        sys.path.insert(0, _path)
+
 from detectron2.config import get_cfg
 from detectron2.projects.deeplab import add_deeplab_config
 from detectron2.engine.defaults import DefaultPredictor
 
-sys.path.append('/home/zhiranworkstation/raas/Mask2Former')
 from mask2former import add_maskformer2_config
 
 import clip
 from PIL import Image
-import numpy as np
-import torch
-import os
 
 def setup_cfg(args):
     cfg = get_cfg()
@@ -98,6 +102,33 @@ class BaseSegmentationModel(BaseModel):
 class Maskomaly(BaseSegmentationModel):
     def __init__(self, args):
         super().__init__(args)
+        self.clip_device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.clip_model, self.clip_preprocess = clip.load(
+            "ViT-B/32", device=self.clip_device
+        )
+        self.clip_model.eval()
+        self.id_prompts = [
+            "a photo of road",
+            "a photo of sidewalk",
+            "a photo of building",
+            "a photo of wall",
+            "a photo of fence",
+            "a photo of pole",
+            "a photo of traffic light",
+            "a photo of traffic sign",
+            "a photo of vegetation",
+            "a photo of terrain",
+            "a photo of sky",
+            "a photo of person on the road",
+            "a photo of rider on the road",
+            "a photo of car on the road",
+            "a photo of truck on the road",
+            "a photo of bus on the road",
+            "a photo of train on the track",
+            "a photo of motorcycle on the road",
+            "a photo of bicycle on the road",
+        ]
+        self.clip_text = clip.tokenize(self.id_prompts).to(self.clip_device)
         if args.analysis_file:
             self.cp = np.load(args.analysis_file)["cp"]
             self.ranking = np.argsort(self.cp)[::-1]
@@ -194,34 +225,8 @@ class Maskomaly(BaseSegmentationModel):
         else:
             raise TypeError("Unsupported image format for RGB extraction")
 
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        clip_model, preprocess = clip.load("ViT-B/32", device=device)
-
         road_anomaly_mask_uint8 = (initial_road_anomaly_mask * 255).astype(np.uint8)
         num_labels, labels_im = cv2.connectedComponents(road_anomaly_mask_uint8)
-
-        id_prompts = [
-            "a photo of road",
-            "a photo of sidewalk",
-            "a photo of building",
-            "a photo of wall",
-            "a photo of fence",
-            "a photo of pole",
-            "a photo of traffic light",
-            "a photo of traffic sign",
-            "a photo of vegetation",
-            "a photo of terrain",
-            "a photo of sky",
-            "a photo of person on the road",
-            "a photo of rider on the road",
-            "a photo of car on the road",
-            "a photo of truck on the road",
-            "a photo of bus on the road",
-            "a photo of train on the track",
-            "a photo of motorcycle on the road",
-            "a photo of bicycle on the road"
-        ]
-        text = clip.tokenize(id_prompts).to(device)
 
         for label in range(1, num_labels):
             component_mask = (labels_im == label).astype(np.uint8)
@@ -242,14 +247,14 @@ class Maskomaly(BaseSegmentationModel):
                 cv2.imwrite(os.path.join(anomaly_patch_dir, f"{filename}_patch_{label:03d}.png"), patch)
 
             patch_pil = Image.fromarray(patch)
-            image_patch = preprocess(patch_pil).unsqueeze(0).to(device)
+            image_patch = self.clip_preprocess(patch_pil).unsqueeze(0).to(self.clip_device)
 
             with torch.no_grad():
-                logits_per_image, _ = clip_model(image_patch, text)
+                logits_per_image, _ = self.clip_model(image_patch, self.clip_text)
                 probs = logits_per_image.softmax(dim=-1).cpu().numpy().flatten()
 
             max_id_prob = np.max(probs)
-            predicted_class = id_prompts[np.argmax(probs)]
+            predicted_class = self.id_prompts[np.argmax(probs)]
 
             if max_id_prob > 0.85:
                 print(f"[CLIP] Patch {label} | ID: {predicted_class} ({max_id_prob:.2f}) → skip")
@@ -261,4 +266,3 @@ class Maskomaly(BaseSegmentationModel):
         self.times.append(time.time() - start_t)
 
         return soft_mask
-

@@ -6,16 +6,19 @@ import cv2
 import numpy as np
 import torch
 
-sys.path.insert(1, os.path.join(sys.path[0], '..'))
+_RAAS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+for _path in (
+    os.path.join(_RAAS_DIR, "Mask2Former"),
+    os.path.join(_RAAS_DIR, "detectron2"),
+):
+    if _path not in sys.path:
+        sys.path.insert(0, _path)
 
 from torch.nn import functional as F
 
 from detectron2.config import get_cfg
 from detectron2.projects.deeplab import add_deeplab_config
 from detectron2.engine.defaults import DefaultPredictor
-
-import sys
-sys.path.append('/home/zhiranworkstation/raas/Mask2Former')
 
 from mask2former import add_maskformer2_config
 
@@ -87,13 +90,6 @@ class Maskomaly(BaseSegmentationModel):
     def get_soft_mask(self, image):
         mask_cls_result, mask_pred_result, _ = self.get_probs_and_seg(image)
 
-        output_dir = "all_soft_masks"
-        os.makedirs(output_dir, exist_ok=True)
-        for i in range(mask_pred_result.shape[0]):
-            soft_mask_single = (mask_pred_result[i] * 255).astype(np.uint8)
-            cv2.imwrite(os.path.join(output_dir, f"soft_mask_{i:03d}.png"), soft_mask_single)
-
-
         start_t = time.time()
         soft_mask = np.ones_like(mask_pred_result[0], dtype=np.float32)
         #
@@ -135,12 +131,6 @@ class Maskomaly(BaseSegmentationModel):
             soft_mask = np.minimum(soft_mask, neg)
 
         # interpolate the masks with lambda = 0.6, any lambda > 0.5 is fine!
-        soft_mask_img = (soft_mask * 255).astype(np.uint8)
-        soft_mask2_img = (soft_mask2 * 255).astype(np.uint8)
-
-        cv2.imwrite('soft_mask.png', soft_mask_img)
-        cv2.imwrite('soft_mask2.png', soft_mask2_img)
-
         soft_mask = 0.6 * soft_mask + 0.4 * soft_mask2
         #soft_mask = 0.99 * soft_mask + 0.01 * soft_mask2
 
@@ -149,4 +139,3 @@ class Maskomaly(BaseSegmentationModel):
         self.times.append(time.time() - start_t)
         print(f"soft_mask shape: {soft_mask.shape}")
         return soft_mask, mask_pred_result 
-

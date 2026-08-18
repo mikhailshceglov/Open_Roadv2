@@ -29,6 +29,19 @@ pip install git+https://github.com/openai/CLIP.git
 # If wrong clip package is installed: pip uninstall clip -y first
 ```
 
+The official SegmentMeIfYouCan evaluator is pinned as a git submodule. After
+cloning (or after pulling the commit which introduced it), initialize it and
+install its one additional dependency:
+
+```bash
+git submodule update --init --recursive
+pip install -r Maskomaly/requirements-smiyc.txt
+```
+
+Do not install the benchmark's full frozen `requirements.txt`: it pins a
+different PyTorch/torchvision stack. All of its other runtime dependencies are
+already included in `Maskomaly/environment.yml`.
+
 ## Running Evaluation and Inference
 
 All scripts must be run from `Maskomaly/scripts/` with `conda activate raas`.
@@ -36,8 +49,8 @@ All scripts must be run from `Maskomaly/scripts/` with `conda activate raas`.
 ```bash
 # Evaluation (inference + metrics in one pass)
 python run_eval.py --model maskomaly     --dataset fs_laf
-python run_eval.py --model maskomaly_id  --dataset smiyc_anomaly --debug
-python run_eval.py --model maskomaly_ood --dataset smiyc_anomaly --strategy per_image
+python run_eval.py --model maskomaly_id  --dataset roadanomaly --debug
+python run_eval.py --model maskomaly_ood --dataset fs_static --strategy per_image
 
 # Inference on an image folder (no ground truth)
 python infer.py --model maskomaly --input /path/to/images --output /path/to/results
@@ -51,19 +64,42 @@ python run_eval.py --model maskomaly --dataset fs_laf \
     --output /path/to/results
 ```
 
-## Hardcoded Paths (Must Update Per Machine)
+### Official SMIYC validation
 
-These constants appear near the top of `scripts/run_eval.py` and `scripts/infer.py`:
+`run_smiyc_eval.py` uses the official dataset loaders, validation splits and
+pixel/component metrics. The dataset root must contain
+`dataset_AnomalyTrack/{images,labels_masks}` and
+`dataset_ObstacleTrack/{images,labels_masks}`.
 
-| Constant | Default |
-|---|---|
-| `_DETECTRON2_DIR` | `/xxx/raas/detectron2` |
-| `DEFAULT_CONFIG` | `.../Mask2Former/configs/cityscapes/semantic-segmentation/swin/maskformer2_swin_large_IN21k_384_bs16_90k.yaml` |
-| `DEFAULT_WEIGHTS` | `.../Maskomaly/maskomaly/ckpt/model_final_17c1ee.pkl` |
-| `DEFAULT_OUTPUT_BASE` | `your_own_path` |
-| `DATASET_CONFIGS` | Per-dataset root paths |
+```bash
+cd Maskomaly/scripts
+python run_smiyc_eval.py \
+  --datasets-root /home/larin/PycharmProjects/cv_research/datasets \
+  --output ../../results/smiyc_official \
+  --models maskomaly maskomaly_id maskomaly_ood
+```
 
-Also `sys.path.append('xxx/raas/Mask2Former')` is hardcoded inside each model file (`model_ori.py`, `model_id.py`, `model_ood.py`) — update these too.
+The command evaluates `AnomalyTrack-validation` (10 public labeled images) and
+`ObstacleTrack-validation` (30 public labeled images). Metrics are printed as
+percentages and written to:
+
+- `results/smiyc_official/summary.csv` and `summary.json`: AUPR, FPR@95,
+  sIoU GT, PPV and mean F1 for all six model/dataset combinations;
+- `results/smiyc_official/anomaly_p/`: official float16 prediction files;
+- `results/smiyc_official/PixBinaryClass/data/`: official pixel curves;
+- `results/smiyc_official/SegEval-AnomalyTrack/data/` and
+  `SegEval-ObstacleTrack/data/`: official component metrics.
+
+Use `--phase inference` to generate predictions without metrics, or
+`--phase metrics` to recalculate metrics without loading Mask2Former or using
+the GPU. `--visualize` enables the official per-frame visualizations. The
+script stops on missing data, weights, dependencies, or any failed frame; it
+never reports a score for a partial run.
+
+All source, config and checkpoint defaults are resolved relative to the RAAS
+repository. The optional `RAAS_DATASETS_ROOT` environment variable controls
+the legacy `run_eval.py` dataset defaults; command-line `--input`,
+`--config-file`, and `--weights`/`--opts` overrides remain available.
 
 ## Architecture
 
@@ -82,8 +118,11 @@ raas/
     ├── mask2former_replacements/  ← patched MaskFormer model
     └── scripts/
         ├── run_eval.py      ← end-to-end inference + evaluation
+        ├── run_smiyc_eval.py ← official SMIYC validation protocol
         ├── infer.py         ← inference only (no ground truth)
         └── eval.py          ← metric functions (AUROC, AUPR, AP)
+├── third_party/
+│   └── road-anomaly-benchmark/ ← pinned official SMIYC evaluator submodule
 ```
 
 ### Key Architectural Invariant: sys.path Ordering
@@ -103,13 +142,16 @@ If you see `ValueError: not enough values to unpack (expected 3, got 1)`, the up
 
 All three models share the same `BaseSegmentationModel.get_probs_and_seg()` → softmax + sigmoid → numpy pipeline.
 
-**`maskomaly` (model_ori.py):** Combines two signals: (1) high-entropy rejection — any query whose top class confidence > 0.7 suppresses its mask region; (2) anomaly promotion — queries at fixed indices [49, 31, 83, 32] contribute positively. Final score = `0.6 * rejection_mask + 0.4 * promotion_mask`. Note: `model_ori.py` contains leftover debug writes (`soft_mask.png`, `soft_mask2.png`, `all_soft_masks/` directory) that run unconditionally.
+**`maskomaly` (model_ori.py):** Combines two signals: (1) high-entropy rejection — any query whose top class confidence > 0.7 suppresses its mask region; (2) anomaly promotion — queries at fixed indices [49, 31, 83, 32] contribute positively. Final score = `0.6 * rejection_mask + 0.4 * promotion_mask`.
 
-**`maskomaly_id` (model_id.py):** After computing the base soft mask, applies road-aware CLIP filtering: extracts road polygon from query mask #20, finds unmasked regions inside the polygon, crops each connected component, and classifies it with CLIP against 19 Cityscapes ID prompts. Components with ID confidence > 0.85 are suppressed (score → 0.05); others are marked anomalous (score → 1.0). CLIP model is loaded fresh per image call — there is no caching.
+**`maskomaly_id` (model_id.py):** After computing the base soft mask, applies road-aware CLIP filtering: extracts road polygon from query mask #20, finds unmasked regions inside the polygon, crops each connected component, and classifies it with CLIP against 19 Cityscapes ID prompts. Components with ID confidence > 0.85 are suppressed (score → 0.05); others are marked anomalous (score → 1.0). CLIP and its text tokens are cached once per model instance.
 
 **`maskomaly_ood` (model_ood.py):** Same pipeline as `maskomaly_id` but the CLIP text prompts include additional OOD phrases ("something unusual in a driving scene", etc.). Decision logic uses combined ID+OOD probability instead of ID-only.
 
-### Dataset Classes (`maskomaly/datasets.py`)
+### Legacy Dataset Classes (`maskomaly/datasets.py`)
+
+These classes support the generic `run_eval.py`. Use `run_smiyc_eval.py`, not
+the legacy SMIYC classes below, for official AnomalyTrack/ObstacleTrack scores.
 
 | Class | Dataset key | Image dir | Label dir |
 |---|---|---|---|
@@ -132,6 +174,7 @@ We thank the authors of the following codebases, which this repository builds up
 - [Maskomaly](https://github.com/jan-ackermann/Maskomaly) — anomaly segmentation with Mask2Former
 - [Mask2Former](https://github.com/facebookresearch/Mask2Former) — universal image segmentation
 - [detectron2](https://github.com/facebookresearch/detectron2) — object detection and segmentation framework
+- [SegmentMeIfYouCan road anomaly benchmark](https://github.com/SegmentMeIfYouCan/road-anomaly-benchmark) — official SMIYC loaders and metrics
 
 ## Citation
 

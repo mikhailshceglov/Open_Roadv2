@@ -43,11 +43,18 @@ from torch.utils.data import DataLoader
 # ── path setup, please use custom paths ────────────────────────────────────────────────────────
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_DIR = os.path.dirname(_SCRIPTS_DIR)
+_RAAS_DIR = os.path.dirname(_PROJECT_DIR)
 _MASKOMALY_DIR = os.path.join(_PROJECT_DIR, "maskomaly")
 _DETECTRON2_REPLACEMENTS_DIR = os.path.join(_PROJECT_DIR, "detectron2_replacements")
-_DETECTRON2_DIR = "/home/zhiranworkstation/raas/detectron2"
+_DETECTRON2_DIR = os.path.join(_RAAS_DIR, "detectron2")
+_MASK2FORMER_DIR = os.path.join(_RAAS_DIR, "Mask2Former")
 
-for _p in [_DETECTRON2_REPLACEMENTS_DIR, _MASKOMALY_DIR, _DETECTRON2_DIR]:
+for _p in reversed([
+    _DETECTRON2_REPLACEMENTS_DIR,
+    _MASKOMALY_DIR,
+    _DETECTRON2_DIR,
+    _MASK2FORMER_DIR,
+]):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
@@ -58,15 +65,17 @@ from eval import calculate_auroc, calculate_aupr, get_scores
 
 # ── constants, please use custom paths ─────────────────────────────────────────────────────────────────
 
-DEFAULT_CONFIG = (
-    "/home/zhiranworkstation/raas/Mask2Former/configs/"
-    "cityscapes/semantic-segmentation/swin/maskformer2_swin_large_IN21k_384_bs16_90k.yaml"
+DEFAULT_CONFIG = os.path.join(
+    _MASK2FORMER_DIR,
+    "configs/cityscapes/semantic-segmentation/swin/"
+    "maskformer2_swin_large_IN21k_384_bs16_90k.yaml",
 )
-DEFAULT_WEIGHTS = (
-    "/home/zhiranworkstation/raas/Maskomaly/maskomaly/ckpt/model_final_17c1ee.pkl"
+DEFAULT_WEIGHTS = os.path.join(
+    _PROJECT_DIR, "maskomaly", "ckpt", "model_final_17c1ee.pkl"
 )
-DEFAULT_OUTPUT_BASE = (
-    "/media/zhiranworkstation/Expansion/1_gaiax/IV2026_anomaly_segmentation"
+DEFAULT_OUTPUT_BASE = os.path.join(_RAAS_DIR, "results", "evaluation")
+DEFAULT_DATASETS_ROOT = os.environ.get(
+    "RAAS_DATASETS_ROOT", os.path.join(os.path.dirname(_RAAS_DIR), "datasets")
 )
 
 MODEL_MODULES = {
@@ -78,23 +87,23 @@ MODEL_MODULES = {
 DATASET_CONFIGS = {
     "fs_laf": (
         "FishyScapesLaF",
-        "/media/zhiranworkstation/T7a/datasets/Anomaly_dataset/fishyscapes/LostAndFound",
+        os.path.join(DEFAULT_DATASETS_ROOT, "LostAndFound"),
     ),
     "fs_static": (
         "FishyScapesStatic",
-        "/home/zhiranworkstation/anomaly_detection/mask2anomaly/Validation_Dataset/fs_static",
+        os.path.join(DEFAULT_DATASETS_ROOT, "fs_static"),
     ),
     "roadanomaly": (
         "RoadAnomaly",
-        "/media/zhiranworkstation/T7a/datasets/Anomaly_dataset/fishyscapes/road_anomaly",
+        os.path.join(DEFAULT_DATASETS_ROOT, "road_anomaly"),
     ),
     "smiyc_anomaly": (
         "SMIYCANO",
-        "/media/zhiranworkstation/T7a/datasets/Anomaly_dataset/SMIYC/dataset_AnomalyTrack",
+        os.path.join(DEFAULT_DATASETS_ROOT, "dataset_AnomalyTrack"),
     ),
     "smiyc_obstacle": (
         "SMIYCOBS",
-        "/media/zhiranworkstation/T7a/datasets/Anomaly_dataset/SMIYC/dataset_ObstacleTrack",
+        os.path.join(DEFAULT_DATASETS_ROOT, "dataset_ObstacleTrack"),
     ),
 }
 

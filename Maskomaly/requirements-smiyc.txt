@@ -1,0 +1,2 @@
+# The other runtime packages are already pinned by environment.yml.
+easydict==1.10

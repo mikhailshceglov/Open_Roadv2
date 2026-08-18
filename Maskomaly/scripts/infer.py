@@ -39,8 +39,14 @@ _RAAS_DIR = os.path.dirname(_PROJECT_DIR) # <--- Добавляем корнев
 _MASKOMALY_DIR = os.path.join(_PROJECT_DIR, "maskomaly")
 _DETECTRON2_REPLACEMENTS_DIR = os.path.join(_PROJECT_DIR, "detectron2_replacements")
 _DETECTRON2_DIR = os.path.join(_RAAS_DIR, "detectron2") # <--- Меняем здесь
+_MASK2FORMER_DIR = os.path.join(_RAAS_DIR, "Mask2Former")
 
-for _p in [_DETECTRON2_REPLACEMENTS_DIR, _MASKOMALY_DIR, _DETECTRON2_DIR]:
+for _p in reversed([
+    _DETECTRON2_REPLACEMENTS_DIR,
+    _MASKOMALY_DIR,
+    _DETECTRON2_DIR,
+    _MASK2FORMER_DIR,
+]):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 

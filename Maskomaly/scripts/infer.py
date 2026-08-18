@@ -35,9 +35,10 @@ from tqdm import tqdm
 # ── path setup ────────────────────────────────────────────────────────────────
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_DIR = os.path.dirname(_SCRIPTS_DIR)
+_RAAS_DIR = os.path.dirname(_PROJECT_DIR) # <--- Добавляем корневую папку RAAS
 _MASKOMALY_DIR = os.path.join(_PROJECT_DIR, "maskomaly")
 _DETECTRON2_REPLACEMENTS_DIR = os.path.join(_PROJECT_DIR, "detectron2_replacements")
-_DETECTRON2_DIR = "/home/zhiranworkstation/raas/detectron2"
+_DETECTRON2_DIR = os.path.join(_RAAS_DIR, "detectron2") # <--- Меняем здесь
 
 for _p in [_DETECTRON2_REPLACEMENTS_DIR, _MASKOMALY_DIR, _DETECTRON2_DIR]:
     if _p not in sys.path:
@@ -45,12 +46,13 @@ for _p in [_DETECTRON2_REPLACEMENTS_DIR, _MASKOMALY_DIR, _DETECTRON2_DIR]:
 
 # ── constants ─────────────────────────────────────────────────────────────────
 
-DEFAULT_CONFIG = (
-    "/home/zhiranworkstation/raas/Mask2Former/configs/"
-    "cityscapes/semantic-segmentation/swin/maskformer2_swin_large_IN21k_384_bs16_90k.yaml"
+DEFAULT_CONFIG = os.path.join(
+    _RAAS_DIR, 
+    "Mask2Former/configs/cityscapes/semantic-segmentation/swin/maskformer2_swin_large_IN21k_384_bs16_90k.yaml"
 )
-DEFAULT_WEIGHTS = (
-    "/home/zhiranworkstation/raas/Maskomaly/maskomaly/ckpt/model_final_17c1ee.pkl"
+DEFAULT_WEIGHTS = os.path.join(
+    _PROJECT_DIR, 
+    "maskomaly/ckpt/model_final_17c1ee.pkl"
 )
 
 MODEL_MODULES = {

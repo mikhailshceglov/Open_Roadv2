@@ -8,6 +8,8 @@ channels:
 dependencies:
   - python=3.10
   - pip=24.0
+  - setuptools=69.5.1
+  - wheel=0.43
   - numpy=1.26
   - pytorch=2.1
   - torchvision=0.16

@@ -75,6 +75,36 @@ class TestObjectomalyCache(unittest.TestCase):
 
 
 class TestObjectomalyBridge(unittest.TestCase):
+    def test_sam_cpu_nms_workaround_normalizes_devices(self):
+        class Tensor:
+            def __init__(self, device):
+                self.device = device
+
+            def detach(self):
+                return self
+
+            def cpu(self):
+                return Tensor("cpu")
+
+            def to(self, device):
+                return Tensor(device)
+
+        calls = []
+
+        def batched_nms(boxes, scores, idxs, threshold):
+            calls.append((boxes.device, scores.device, idxs.device, threshold))
+            return Tensor("cpu")
+
+        automatic = SimpleNamespace(batched_nms=batched_nms)
+        package = SimpleNamespace(automatic_mask_generator=automatic)
+        with mock.patch.dict(sys.modules, {"segment_anything": package}):
+            refinement.install_sam_cpu_nms_workaround()
+            keep = automatic.batched_nms(
+                Tensor("cuda"), Tensor("cuda"), Tensor("cuda"), 0.7
+            )
+        self.assertEqual(calls, [("cpu", "cpu", "cpu", 0.7)])
+        self.assertEqual(keep.device, "cuda")
+
     def test_refinement_accepts_custom_folder_manifest(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

@@ -102,6 +102,34 @@ def load_dependencies():
     }
 
 
+def install_sam_cpu_nms_workaround() -> None:
+    """Avoid torchvision 0.16 mixed-device indexing for >4000 SAM boxes.
+
+    A 64x64 point grid can enter torchvision's vanilla batched-NMS branch.
+    On the pinned torch/torchvision stack that branch may create a CPU keep
+    mask while retaining CUDA indices. Running only NMS on CPU is deterministic
+    and leaves SAM encoding/mask decoding on the requested device.
+    """
+    from segment_anything import automatic_mask_generator as sam_amg
+
+    current = sam_amg.batched_nms
+    if getattr(current, "_raas_cpu_nms", False):
+        return
+
+    def cpu_batched_nms(boxes, scores, idxs, iou_threshold):
+        device = boxes.device
+        keep = current(
+            boxes.detach().cpu(),
+            scores.detach().cpu(),
+            idxs.detach().cpu(),
+            iou_threshold,
+        )
+        return keep.to(device=device)
+
+    cpu_batched_nms._raas_cpu_nms = True
+    sam_amg.batched_nms = cpu_batched_nms
+
+
 def _make_generator(args, config, dependencies):
     if args.sam_checkpoint is None:
         raise ValueError("--sam-checkpoint is required for phase {}".format(args.phase))
@@ -109,6 +137,8 @@ def _make_generator(args, config, dependencies):
     if not checkpoint.is_file():
         raise FileNotFoundError("SAM checkpoint not found: {}".format(checkpoint))
     sam = config["sam"]
+    if bool(sam.get("force_cpu_nms", False)):
+        install_sam_cpu_nms_workaround()
     expected_md5 = str(sam.get("checkpoint_md5", "")).lower()
     if expected_md5:
         digest = hashlib.md5()

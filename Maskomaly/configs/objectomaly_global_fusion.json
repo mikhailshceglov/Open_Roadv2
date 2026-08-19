@@ -4,7 +4,8 @@
     "checkpoint_md5": "4b8939a88964f0f4ff5f5b2642c598a6",
     "points_per_side": 64,
     "pred_iou_thresh": 0.86,
-    "stability_score_thresh": 0.92
+    "stability_score_thresh": 0.92,
+    "force_cpu_nms": true
   },
   "postprocess": {
     "q_min": 0.86,

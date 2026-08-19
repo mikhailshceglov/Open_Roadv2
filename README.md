@@ -109,6 +109,9 @@ in the JSON manifest. Add `--recursive` to `export` to scan subdirectories.
 Use `maskomaly_id` or `maskomaly_ood` in place of `maskomaly` when required.
 After upgrading from an older checkout, rerun `export`: old manifests do not
 contain the Mask2Former semantic map required by global fusion.
+The 64x64 config also enables a narrow CPU-NMS compatibility workaround for
+the >4000-box branch in torchvision 0.16; SAM encoding and mask decoding stay
+on CUDA.
 
 To change only OASC/global-fusion/MBP parameters without regenerating SAM
 masks, edit/copy the Objectomaly JSON config and rerun the second command with
@@ -172,6 +175,7 @@ update it once:
 
 ```bash
 conda activate objectomaly
+python -m pip install "setuptools==69.5.1" "wheel==0.43.0"
 python -m pip install \
   git+https://github.com/openai/CLIP.git@d50d76daa670286dd6cacf3bcd80b5e4823fc8e1
 ```

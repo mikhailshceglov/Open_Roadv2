@@ -44,7 +44,9 @@ already included in `Maskomaly/environment.yml`.
 
 ## Running Evaluation and Inference
 
-All scripts must be run from `Maskomaly/scripts/` with `conda activate raas`.
+The legacy commands below are shown from `Maskomaly/scripts/` with the
+`raas` environment active. Newer scripts can be launched from the repository
+root as shown in their examples.
 
 ```bash
 # Evaluation (inference + metrics in one pass)
@@ -64,12 +66,55 @@ python run_eval.py --model maskomaly --dataset fs_laf \
     --output /path/to/results
 ```
 
+### RAAS + Objectomaly on an image folder (no GT)
+
+This path is qualitative inference only: it does not require labels and does
+not calculate metrics. Run RAAS in its original environment first:
+
+```bash
+cd /path/to/RAAS
+conda activate raas
+python Maskomaly/scripts/run_objectomaly_infer.py export \
+  --model maskomaly \
+  --input /path/to/my-images \
+  --output results/my-images-cache
+```
+
+Then run SAM/OASC/MBP in the isolated Objectomaly environment. The SAM setup
+and checkpoint download are documented in the Objectomaly section below.
+
+```bash
+conda activate objectomaly
+python Maskomaly/scripts/run_objectomaly_infer.py refine \
+  --manifest results/my-images-cache/manifest-maskomaly.json \
+  --output results/my-images-objectomaly \
+  --sam-checkpoint checkpoints/sam_vit_h_4b8939.pth \
+  --threshold 0.5
+```
+
+The result directory contains lossless float32 maps under `refined/`, reusable
+SAM masks under `mask_cache/`, and inspection images under `visualizations/`:
+coarse/refined grayscale maps, heatmaps, overlays, thresholded binary masks,
+and three-column `comparison/` images (input, RAAS, RAAS + Objectomaly).
+The file IDs are deterministic and the original relative filename is retained
+in the JSON manifest. Add `--recursive` to `export` to scan subdirectories.
+Use `maskomaly_id` or `maskomaly_ood` in place of `maskomaly` when required.
+
+To change only OASC/MBP parameters without regenerating SAM masks, edit/copy
+the Objectomaly JSON config and rerun the second command with
+`--phase refine --config /path/to/config.json`. No SMIYC score can be inferred
+from this path without ground-truth masks.
+
 ### Official SMIYC validation
 
 `run_smiyc_eval.py` uses the official dataset loaders, validation splits and
 pixel/component metrics. The dataset root must contain
 `dataset_AnomalyTrack/{images,labels_masks}` and
 `dataset_ObstacleTrack/{images,labels_masks}`.
+
+The normative team protocol, exact formulas, thresholds, component filters
+and reproducibility checklist are documented in
+[`docs/SMIYC_METRICS_PROTOCOL_RU.md`](docs/SMIYC_METRICS_PROTOCOL_RU.md).
 
 ```bash
 cd Maskomaly/scripts
@@ -95,6 +140,77 @@ Use `--phase inference` to generate predictions without metrics, or
 the GPU. `--visualize` enables the official per-frame visualizations. The
 script stops on missing data, weights, dependencies, or any failed frame; it
 never reports a score for a partial run.
+
+### Objectomaly cache-first evaluation
+
+Objectomaly is pinned in `third_party/Objectomaly`. Its dependency stack is
+kept separate from the Python 3.8/PyTorch 1.9 RAAS environment:
+
+```bash
+git submodule update --init --recursive
+conda env create -f Maskomaly/environment-objectomaly.yml
+```
+
+This bridge environment intentionally contains only classic SAM ViT-H and
+the OASC/MBP runtime. Do not install Objectomaly's full frozen requirements
+into `raas`; SAM2, MobileSAM and the analysis stack are not needed for this
+evaluation path.
+
+Download the official SAM ViT-H checkpoint to a non-versioned checkpoint
+directory and verify its published MD5:
+
+```bash
+mkdir -p checkpoints
+curl -L \
+  https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth \
+  -o checkpoints/sam_vit_h_4b8939.pth
+md5sum checkpoints/sam_vit_h_4b8939.pth
+# expected: 4b8939a88964f0f4ff5f5b2642c598a6
+```
+
+The pipeline has three strict stages. First export lossless BGR images and
+float32 Maskomaly maps in the existing `raas` environment:
+
+```bash
+conda activate raas
+python Maskomaly/scripts/export_objectomaly_inputs.py \
+  --datasets-root /path/to/datasets \
+  --output results/objectomaly_cache \
+  --models maskomaly
+```
+
+Then generate/cache SAM masks and apply the official Objectomaly experiment
+API (`quality_aware_residual_blending` OASC followed by
+`boundary_band_residual` MBP/BBRR):
+
+```bash
+conda activate objectomaly
+python Maskomaly/scripts/run_objectomaly_refinement.py \
+  --manifest results/objectomaly_cache/manifest-maskomaly.json \
+  --output results/objectomaly_refined \
+  --sam-checkpoint checkpoints/sam_vit_h_4b8939.pth
+```
+
+Finally import refined maps and calculate the unchanged official SMIYC
+metrics in `raas`:
+
+```bash
+conda activate raas
+python Maskomaly/scripts/import_objectomaly_outputs.py \
+  --manifest results/objectomaly_refined/manifest-objectomaly-maskomaly.json \
+  --datasets-root /path/to/datasets \
+  --output results/objectomaly_smiyc
+```
+
+The final table is `results/objectomaly_smiyc/summary.csv`. Raw float32 maps,
+lossless input arrays, packed SAM `MaskBundle` caches and exact configs remain
+available under the two cache directories. `--phase masks` followed by
+`--phase refine` repeats refinement without running SAM again;
+`import_objectomaly_outputs.py --phase metrics` repeats metrics without GPU.
+
+Objectomaly currently has no project-level license. See
+[`docs/OBJECTOMALY_LICENSE_STATUS.md`](docs/OBJECTOMALY_LICENSE_STATUS.md)
+before redistributing or publishing the combined implementation.
 
 All source, config and checkpoint defaults are resolved relative to the RAAS
 repository. The optional `RAAS_DATASETS_ROOT` environment variable controls
@@ -122,7 +238,8 @@ raas/
         ├── infer.py         ← inference only (no ground truth)
         └── eval.py          ← metric functions (AUROC, AUPR, AP)
 ├── third_party/
-│   └── road-anomaly-benchmark/ ← pinned official SMIYC evaluator submodule
+│   ├── road-anomaly-benchmark/ ← pinned official SMIYC evaluator submodule
+│   └── Objectomaly/            ← pinned upstream; kept unmodified
 ```
 
 ### Key Architectural Invariant: sys.path Ordering
@@ -175,6 +292,7 @@ We thank the authors of the following codebases, which this repository builds up
 - [Mask2Former](https://github.com/facebookresearch/Mask2Former) — universal image segmentation
 - [detectron2](https://github.com/facebookresearch/detectron2) — object detection and segmentation framework
 - [SegmentMeIfYouCan road anomaly benchmark](https://github.com/SegmentMeIfYouCan/road-anomaly-benchmark) — official SMIYC loaders and metrics
+- [Objectomaly](https://github.com/hon121215/Objectomaly) — object-aware anomaly-map refinement
 
 ## Citation
 

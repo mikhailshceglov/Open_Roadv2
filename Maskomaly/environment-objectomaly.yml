@@ -1,0 +1,18 @@
+# Isolated runtime for the RAAS -> Objectomaly cache bridge.
+# Keep this separate from the Python 3.8 / PyTorch 1.9 RAAS environment.
+name: objectomaly
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip=24.0
+  - numpy=1.26
+  - pytorch=2.1
+  - torchvision=0.16
+  - pytorch-cuda=11.8
+  - pytest=7.4
+  - pip:
+      - opencv-python-headless==4.9.0.80
+      - segment-anything==1.0

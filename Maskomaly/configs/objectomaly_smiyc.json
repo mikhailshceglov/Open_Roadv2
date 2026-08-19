@@ -1,0 +1,38 @@
+{
+  "sam": {
+    "variant": "vit_h",
+    "checkpoint_md5": "4b8939a88964f0f4ff5f5b2642c598a6",
+    "points_per_side": 32,
+    "pred_iou_thresh": 0.88,
+    "stability_score_thresh": 0.95
+  },
+  "postprocess": {
+    "q_min": 0.7,
+    "area_min": 0,
+    "area_frac_min": 0.0005,
+    "area_frac_max": 0.5,
+    "nms_iou": 0.7,
+    "partition": "small_to_large"
+  },
+  "oasc": {
+    "variant": "quality_aware_residual_blending",
+    "params": {
+      "base_lambda": 1.0,
+      "alpha": 0.02,
+      "steepness": 20.0,
+      "use_quality": true,
+      "use_area": true,
+      "use_anomaly_support": true,
+      "use_overlap_penalty": true
+    }
+  },
+  "mbp": {
+    "variant": "boundary_band_residual",
+    "params": {
+      "dilation_radius": 3,
+      "gaussian_sigma": 1.0,
+      "gaussian_ksize": [7, 7],
+      "lam": 0.5
+    }
+  }
+}

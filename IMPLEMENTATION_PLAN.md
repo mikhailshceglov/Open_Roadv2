@@ -24,6 +24,9 @@ Cache-first milestone реализован в рабочем дереве:
 - `run_objectomaly_infer.py` запускает тот же cache-first pipeline на
   произвольной папке без GT и сохраняет карты, heatmaps, overlays, binary
   masks и side-by-side comparisons;
+- `global_fusion.py` применяет soft semantic priors вместо hard road ROI,
+  сохраняет компактные SAM candidates во всех зонах кадра и валидирует их
+  batched CLIP prompt ensemble для road/airborne OOD;
 - добавлены strict cache-contract tests и инструкция по лицензированию.
 
 Следующий milestone после серверного baseline — road-aware/global CLIP fusion

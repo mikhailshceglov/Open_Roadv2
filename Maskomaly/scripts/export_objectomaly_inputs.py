@@ -14,7 +14,12 @@ RAAS_DIR = MASKOMALY_DIR.parent
 sys.path.insert(0, str(MASKOMALY_DIR / "maskomaly"))
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from objectomaly_cache import validate_anomaly_map, validate_frame_id, write_manifest
+from objectomaly_cache import (
+    validate_anomaly_map,
+    validate_frame_id,
+    validate_semantic_map,
+    write_manifest,
+)
 import run_smiyc_eval as smiyc
 
 
@@ -36,6 +41,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def export_evaluation(evaluation, model, model_name: str, output: Path):
+    import cv2
+
     entries = []
     expected = len(evaluation)
     for frame in evaluation.get_frames():
@@ -45,10 +52,26 @@ def export_evaluation(evaluation, model, model_name: str, output: Path):
         prediction = model.get_soft_mask(bgr)
         coarse = smiyc.prepare_anomaly_map(prediction, bgr.shape[:2])
         coarse = validate_anomaly_map(coarse, bgr.shape[:2])
+        semantic = getattr(model, "last_semantic_segmentation", None)
+        if semantic is None:
+            raise RuntimeError("Model did not expose last_semantic_segmentation")
+        semantic = np.asarray(semantic)
+        if semantic.shape != bgr.shape[:2]:
+            semantic = cv2.resize(
+                semantic.astype(np.int16),
+                (bgr.shape[1], bgr.shape[0]),
+                interpolation=cv2.INTER_NEAREST,
+            )
+        semantic = validate_semantic_map(semantic, bgr.shape[:2])
 
         image_rel = Path("images") / dataset / (fid + ".npy")
         coarse_rel = Path("coarse") / model_name / dataset / (fid + ".npy")
-        for rel, value in ((image_rel, bgr), (coarse_rel, coarse)):
+        semantic_rel = Path("semantic") / model_name / dataset / (fid + ".npy")
+        for rel, value in (
+            (image_rel, bgr),
+            (coarse_rel, coarse),
+            (semantic_rel, semantic),
+        ):
             path = output / rel
             path.parent.mkdir(parents=True, exist_ok=True)
             np.save(str(path), value, allow_pickle=False)
@@ -62,6 +85,7 @@ def export_evaluation(evaluation, model, model_name: str, output: Path):
                 "width": int(bgr.shape[1]),
                 "image_bgr": str(image_rel),
                 "coarse_map": str(coarse_rel),
+                "semantic_map": str(semantic_rel),
             }
         )
     if len(entries) != expected:

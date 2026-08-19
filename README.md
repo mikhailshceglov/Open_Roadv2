@@ -80,8 +80,12 @@ python Maskomaly/scripts/run_objectomaly_infer.py export \
   --output results/my-images-cache
 ```
 
-Then run SAM/OASC/MBP in the isolated Objectomaly environment. The SAM setup
-and checkpoint download are documented in the Objectomaly section below.
+Then run SAM/OASC/global fusion/MBP in the isolated Objectomaly environment.
+The folder pipeline defaults to `configs/objectomaly_global_fusion.json`: a
+64x64 SAM prompt grid finds small objects, semantic class weights softly
+attenuate normal backgrounds without zeroing any region, and batched CLIP
+validation can restore compact OOD candidates anywhere in the frame, including
+the sky. The SAM setup and checkpoint download are documented below.
 
 ```bash
 conda activate objectomaly
@@ -92,16 +96,22 @@ python Maskomaly/scripts/run_objectomaly_infer.py refine \
   --threshold 0.5
 ```
 
-The result directory contains lossless float32 maps under `refined/`, reusable
-SAM masks under `mask_cache/`, and inspection images under `visualizations/`:
-coarse/refined grayscale maps, heatmaps, overlays, thresholded binary masks,
-and three-column `comparison/` images (input, RAAS, RAAS + Objectomaly).
+The `all` phase automatically runs SAM and CLIP in separate passes so both
+models do not occupy GPU memory at once. The result directory contains
+lossless float32 maps under `fused/` and `refined/`, reusable SAM masks under
+`mask_cache/`, per-frame candidate decisions in the refined JSON manifest,
+and inspection images under `visualizations/`: semantic zones, protected
+candidate overlays, coarse/fused/refined maps, heatmaps, overlays, thresholded
+binary masks, and four-column `comparison/` images (input, RAAS, global fusion,
+final Objectomaly output).
 The file IDs are deterministic and the original relative filename is retained
 in the JSON manifest. Add `--recursive` to `export` to scan subdirectories.
 Use `maskomaly_id` or `maskomaly_ood` in place of `maskomaly` when required.
+After upgrading from an older checkout, rerun `export`: old manifests do not
+contain the Mask2Former semantic map required by global fusion.
 
-To change only OASC/MBP parameters without regenerating SAM masks, edit/copy
-the Objectomaly JSON config and rerun the second command with
+To change only OASC/global-fusion/MBP parameters without regenerating SAM
+masks, edit/copy the Objectomaly JSON config and rerun the second command with
 `--phase refine --config /path/to/config.json`. No SMIYC score can be inferred
 from this path without ground-truth masks.
 
@@ -152,9 +162,19 @@ conda env create -f Maskomaly/environment-objectomaly.yml
 ```
 
 This bridge environment intentionally contains only classic SAM ViT-H and
-the OASC/MBP runtime. Do not install Objectomaly's full frozen requirements
+the OASC/MBP runtime plus OpenAI CLIP for global candidate validation. Do not
+install Objectomaly's full frozen requirements
 into `raas`; SAM2, MobileSAM and the analysis stack are not needed for this
 evaluation path.
+
+If the `objectomaly` environment was created before global fusion was added,
+update it once:
+
+```bash
+conda activate objectomaly
+python -m pip install \
+  git+https://github.com/openai/CLIP.git@d50d76daa670286dd6cacf3bcd80b5e4823fc8e1
+```
 
 Download the official SAM ViT-H checkpoint to a non-versioned checkpoint
 directory and verify its published MD5:
@@ -207,6 +227,31 @@ lossless input arrays, packed SAM `MaskBundle` caches and exact configs remain
 available under the two cache directories. `--phase masks` followed by
 `--phase refine` repeats refinement without running SAM again;
 `import_objectomaly_outputs.py --phase metrics` repeats metrics without GPU.
+
+The commands above deliberately preserve the official Objectomaly baseline
+config. To evaluate the experimental global/airborne fusion with the same
+SMIYC metrics, reuse the exported manifest but run SAM and CLIP as two
+separate processes:
+
+```bash
+conda activate objectomaly
+python Maskomaly/scripts/run_objectomaly_refinement.py \
+  --manifest results/objectomaly_cache/manifest-maskomaly.json \
+  --output results/objectomaly_global \
+  --config Maskomaly/configs/objectomaly_global_fusion.json \
+  --sam-checkpoint checkpoints/sam_vit_h_4b8939.pth \
+  --phase masks
+
+python Maskomaly/scripts/run_objectomaly_refinement.py \
+  --manifest results/objectomaly_cache/manifest-maskomaly.json \
+  --output results/objectomaly_global \
+  --config Maskomaly/configs/objectomaly_global_fusion.json \
+  --phase refine
+```
+
+Import `results/objectomaly_global/manifest-objectomaly-maskomaly.json` with
+the same final metrics command. Keeping the output root separate prevents the
+experimental masks and scores from overwriting the baseline.
 
 Objectomaly currently has no project-level license. See
 [`docs/OBJECTOMALY_LICENSE_STATUS.md`](docs/OBJECTOMALY_LICENSE_STATUS.md)

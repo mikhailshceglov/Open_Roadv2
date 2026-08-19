@@ -44,6 +44,21 @@ def validate_bgr_image(value: np.ndarray, target_hw=None) -> np.ndarray:
     return np.ascontiguousarray(image)
 
 
+def validate_semantic_map(value: np.ndarray, target_hw: Tuple[int, int]) -> np.ndarray:
+    semantic = np.asarray(value)
+    if semantic.ndim != 2 or semantic.shape != tuple(target_hw):
+        raise ValueError(
+            "Expected semantic map {}, got {}".format(tuple(target_hw), semantic.shape)
+        )
+    if not np.issubdtype(semantic.dtype, np.integer):
+        if not np.all(np.isfinite(semantic)) or not np.all(semantic == np.rint(semantic)):
+            raise ValueError("Semantic map must contain finite integer class IDs")
+    semantic = semantic.astype(np.int16, copy=False)
+    if semantic.size and int(semantic.min()) < 0:
+        raise ValueError("Semantic class IDs must be non-negative")
+    return np.ascontiguousarray(semantic)
+
+
 def write_manifest(path: Path, payload: Mapping[str, object]) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)

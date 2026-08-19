@@ -1,0 +1,118 @@
+{
+  "sam": {
+    "variant": "vit_h",
+    "checkpoint_md5": "4b8939a88964f0f4ff5f5b2642c598a6",
+    "points_per_side": 64,
+    "pred_iou_thresh": 0.86,
+    "stability_score_thresh": 0.92
+  },
+  "postprocess": {
+    "q_min": 0.86,
+    "area_min": 0,
+    "area_frac_min": 0.00002,
+    "area_frac_max": 0.5,
+    "nms_iou": 0.7,
+    "partition": "small_to_large"
+  },
+  "oasc": {
+    "variant": "quality_aware_residual_blending",
+    "params": {
+      "base_lambda": 0.5,
+      "alpha": 0.005,
+      "steepness": 20.0,
+      "agg": "trimmed_mean",
+      "trim": 0.1,
+      "use_quality": true,
+      "use_area": true,
+      "use_anomaly_support": true,
+      "use_overlap_penalty": true,
+      "max_lambda": 0.6
+    }
+  },
+  "global_fusion": {
+    "enabled": true,
+    "road_class_ids": [0],
+    "road_boost": 1.05,
+    "background_class_ids": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
+    "class_factors": {
+      "0": 1.0,
+      "1": 0.85,
+      "2": 0.55,
+      "3": 0.55,
+      "4": 0.65,
+      "5": 0.8,
+      "6": 0.9,
+      "7": 0.9,
+      "8": 0.55,
+      "9": 0.65,
+      "10": 0.35,
+      "11": 0.9,
+      "12": 0.9,
+      "13": 0.9,
+      "14": 0.9,
+      "15": 0.9,
+      "16": 0.9,
+      "17": 0.9,
+      "18": 0.9
+    },
+    "candidates": {
+      "min_area_frac": 0.00002,
+      "max_area_frac": 0.03,
+      "score_quantile": 0.9,
+      "min_score": 0.45,
+      "clip_probe_min_score": 0.05,
+      "min_contrast": 0.12,
+      "ring_radius": 9,
+      "max_candidates": 96,
+      "clip_margin_threshold": 0.0,
+      "clip_candidate_floor": 0.65
+    },
+    "clip": {
+      "enabled": true,
+      "model": "ViT-B/32",
+      "implementation_commit": "d50d76daa670286dd6cacf3bcd80b5e4823fc8e1",
+      "batch_size": 16,
+      "context_fraction": 0.15,
+      "mask_background": true,
+      "include_context_view": true,
+      "normal_prompts": [
+        "an empty sky above a road",
+        "clouds in the sky",
+        "sun glare in the sky",
+        "fog or haze above a highway",
+        "street lights against the sky",
+        "overhead wires above a road",
+        "a normal highway sound barrier",
+        "a normal roadside guardrail",
+        "an empty road surface",
+        "a normal road marking",
+        "normal roadside vegetation",
+        "a normal car driving on a road",
+        "a normal truck driving on a road"
+      ],
+      "ood_prompts": [
+        "a detached vehicle part flying through the air",
+        "a tire flying above a road",
+        "construction debris falling onto a road",
+        "an object thrown from a moving vehicle",
+        "airborne debris above a highway",
+        "a solid foreign object in the sky above a road",
+        "cargo falling from a truck",
+        "an unknown obstacle flying toward the road",
+        "debris lying on the road",
+        "a lost vehicle part on the road",
+        "construction material blocking a traffic lane",
+        "an unknown solid obstacle on a road"
+      ]
+    }
+  },
+  "mbp": {
+    "variant": "boundary_band_residual",
+    "params": {
+      "dilation_radius": 1,
+      "gaussian_sigma": 0.7,
+      "gaussian_ksize": [5, 5],
+      "lam": 0.25
+    }
+  }
+}

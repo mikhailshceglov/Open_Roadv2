@@ -24,8 +24,10 @@ from objectomaly_cache import (
     validate_anomaly_map,
     validate_bgr_image,
     validate_frame_id,
+    validate_semantic_map,
     write_manifest,
 )
+from global_fusion import apply_global_fusion, build_clip_validator
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -138,6 +140,7 @@ def refine_entry(
     dependencies,
     phase: str,
     generator=None,
+    clip_validator=None,
 ):
     fid = validate_frame_id(entry["fid"])
     dataset = validate_frame_id(str(entry["dataset"]))
@@ -186,6 +189,46 @@ def refine_entry(
         calibrated = dependencies["apply_oasc"](
             coarse, bundle, oasc_cfg["variant"], **oasc_cfg.get("params", {})
         )
+        fusion_cfg = config.get("global_fusion", {})
+        if isinstance(fusion_cfg, dict) and fusion_cfg.get("enabled", False):
+            semantic_rel = entry.get("semantic_map")
+            if not semantic_rel:
+                raise ValueError(
+                    "Global fusion requires semantic_map in every input entry; "
+                    "rerun the RAAS export stage"
+                )
+            semantic = validate_semantic_map(
+                np.load(
+                    str(resolve_cached_path(input_manifest, semantic_rel)),
+                    allow_pickle=False,
+                ),
+                target_hw,
+            )
+            calibrated, protected, diagnostics = apply_global_fusion(
+                calibrated,
+                semantic,
+                image,
+                bundle,
+                fusion_cfg,
+                clip_validator=clip_validator,
+            )
+            fused_rel = Path("fused") / str(entry["source_model"]) / dataset / (fid + ".npy")
+            protected_rel = (
+                Path("protected_candidates")
+                / str(entry["source_model"])
+                / dataset
+                / (fid + ".npy")
+            )
+            for rel, value in (
+                (fused_rel, calibrated),
+                (protected_rel, protected.astype(np.uint8)),
+            ):
+                path = output / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                np.save(str(path), value, allow_pickle=False)
+            result["fused_map"] = str(fused_rel)
+            result["protected_candidates"] = str(protected_rel)
+            result["global_fusion"] = diagnostics
         mbp_cfg = config["mbp"]
         mbp_params = dict(mbp_cfg.get("params", {}))
         if "gaussian_ksize" in mbp_params:
@@ -246,6 +289,14 @@ def execute(args, dependencies=None, generator=None):
     dependencies = dependencies or load_dependencies()
     if generator is None and args.phase in ("all", "masks"):
         generator = _make_generator(args, config, dependencies)
+    clip_validator = None
+    fusion_cfg = config.get("global_fusion", {})
+    if (
+        args.phase in ("all", "refine")
+        and isinstance(fusion_cfg, dict)
+        and fusion_cfg.get("enabled", False)
+    ):
+        clip_validator = build_clip_validator(fusion_cfg, args.device)
 
     entries = []
     for source_entry in source["entries"]:
@@ -260,6 +311,7 @@ def execute(args, dependencies=None, generator=None):
                 dependencies,
                 args.phase,
                 generator,
+                clip_validator,
             )
         )
         print("{} / {}: masks={}".format(entry["dataset"], entry["fid"], entries[-1]["n_masks"]))

@@ -15,12 +15,14 @@ sys.path.insert(0, str(MASKOMALY_DIR / "scripts"))
 import export_objectomaly_inputs as exporter
 import import_objectomaly_outputs as importer
 import run_objectomaly_infer as folder_inference
+from global_fusion import apply_global_fusion
 from objectomaly_cache import (
     index_entries,
     read_manifest,
     resolve_cached_path,
     validate_anomaly_map,
     validate_frame_id,
+    validate_semantic_map,
     write_manifest,
 )
 import run_objectomaly_refinement as refinement
@@ -64,6 +66,12 @@ class TestObjectomalyCache(unittest.TestCase):
         self.assertEqual(result.dtype, np.float32)
         with self.assertRaises(ValueError):
             validate_anomaly_map(np.full((2, 3), 1.1), (2, 3))
+
+    def test_semantic_map_contract(self):
+        result = validate_semantic_map(np.zeros((2, 3), np.int64), (2, 3))
+        self.assertEqual(result.dtype, np.int16)
+        with self.assertRaises(ValueError):
+            validate_semantic_map(np.full((2, 3), 1.5), (2, 3))
 
 
 class TestObjectomalyBridge(unittest.TestCase):
@@ -145,6 +153,9 @@ class TestObjectomalyBridge(unittest.TestCase):
 
             class Model:
                 def get_soft_mask(self, image):
+                    self.last_semantic_segmentation = np.full(
+                        image.shape[:2], 10, np.int16
+                    )
                     return np.full(image.shape[:2], 0.375, np.float32)
 
             args = SimpleNamespace(
@@ -181,11 +192,19 @@ class TestObjectomalyBridge(unittest.TestCase):
             refined_root = root / "refined"
             image_rel = Path("images/custom-folder/000000_one.npy")
             coarse_rel = Path("coarse/maskomaly/custom-folder/000000_one.npy")
+            semantic_rel = Path("semantic/maskomaly/custom-folder/000000_one.npy")
+            fused_rel = Path("fused/maskomaly/custom-folder/000000_one.npy")
             refined_rel = Path("refined/maskomaly/custom-folder/000000_one.npy")
+            protected_rel = Path(
+                "protected_candidates/maskomaly/custom-folder/000000_one.npy"
+            )
             for base, relative, value in (
                 (source_root, image_rel, np.full((3, 4, 3), 80, np.uint8)),
                 (source_root, coarse_rel, np.full((3, 4), 0.25, np.float32)),
+                (source_root, semantic_rel, np.full((3, 4), 10, np.int16)),
+                (refined_root, fused_rel, np.full((3, 4), 0.65, np.float32)),
                 (refined_root, refined_rel, np.full((3, 4), 0.75, np.float32)),
+                (refined_root, protected_rel, np.ones((3, 4), np.uint8)),
             ):
                 (base / relative).parent.mkdir(parents=True, exist_ok=True)
                 np.save(str(base / relative), value, allow_pickle=False)
@@ -198,7 +217,10 @@ class TestObjectomalyBridge(unittest.TestCase):
                 "width": 4,
                 "image_bgr": str(image_rel),
                 "coarse_map": str(coarse_rel),
+                "semantic_map": str(semantic_rel),
+                "fused_map": str(fused_rel),
                 "refined_map": str(refined_rel),
+                "protected_candidates": str(protected_rel),
             }
             write_manifest(
                 source_manifest,
@@ -226,6 +248,79 @@ class TestObjectomalyBridge(unittest.TestCase):
             )
             np.testing.assert_array_equal(binary, 255)
 
+    def test_global_fusion_suppresses_sky_but_preserves_compact_contrast(self):
+        masks = np.zeros((1, 10, 10), dtype=bool)
+        masks[0, 4:6, 4:6] = True
+        bundle = SimpleNamespace(
+            n=1,
+            masks=masks,
+            area=np.array([4], np.int32),
+            quality=np.array([0.95], np.float32),
+            bbox=np.array([[4, 4, 6, 6]], np.int32),
+        )
+        score = np.full((10, 10), 0.6, np.float32)
+        score[4:6, 4:6] = 0.9
+        config = {
+            "class_factors": {"10": 0.25},
+            "background_class_ids": [10],
+            "candidates": {
+                "max_area_frac": 0.1,
+                "min_score": 0.5,
+                "min_contrast": 0.2,
+                "ring_radius": 1,
+            },
+        }
+        fused, protected, diagnostics = apply_global_fusion(
+            score,
+            np.full((10, 10), 10, np.int16),
+            np.zeros((10, 10, 3), np.uint8),
+            bundle,
+            config,
+        )
+        self.assertAlmostEqual(float(fused[0, 0]), 0.15, places=5)
+        self.assertAlmostEqual(float(fused[4, 4]), 0.9, places=5)
+        self.assertTrue(protected[4, 4])
+        self.assertEqual(diagnostics["protected_count"], 1)
+
+    def test_global_fusion_clip_can_restore_airborne_candidate(self):
+        masks = np.zeros((1, 10, 10), dtype=bool)
+        masks[0, 4:6, 4:6] = True
+        bundle = SimpleNamespace(
+            n=1,
+            masks=masks,
+            area=np.array([4], np.int32),
+            quality=np.array([0.95], np.float32),
+            bbox=np.array([[4, 4, 6, 6]], np.int32),
+        )
+
+        class Validator:
+            def score_regions(self, image, input_bundle, indices):
+                return {0: {"clip_margin": 0.1, "ood_prompt": "flying tire"}}
+
+        config = {
+            "class_factors": {"10": 0.2},
+            "background_class_ids": [10],
+            "candidates": {
+                "max_area_frac": 0.1,
+                "clip_probe_min_score": 0.1,
+                "min_score": 0.9,
+                "min_contrast": 0.5,
+                "clip_margin_threshold": 0.0,
+                "clip_candidate_floor": 0.65,
+            },
+        }
+        fused, protected, diagnostics = apply_global_fusion(
+            np.full((10, 10), 0.4, np.float32),
+            np.full((10, 10), 10, np.int16),
+            np.zeros((10, 10, 3), np.uint8),
+            bundle,
+            config,
+            clip_validator=Validator(),
+        )
+        self.assertAlmostEqual(float(fused[4, 4]), 0.65, places=5)
+        self.assertTrue(protected[4, 4])
+        self.assertEqual(diagnostics["candidates"][0]["reasons"], ["clip_ood"])
+
     def test_export_is_lossless_bgr_and_float32(self):
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp)
@@ -246,6 +341,9 @@ class TestObjectomalyBridge(unittest.TestCase):
 
             class Model:
                 def get_soft_mask(self, image):
+                    self.last_semantic_segmentation = np.full(
+                        image.shape[:2], 10, np.int16
+                    )
                     np.testing.assert_array_equal(image[0, 0], [30, 20, 10])
                     return np.full((2, 3), 0.25, dtype=np.float64)
 
@@ -253,8 +351,12 @@ class TestObjectomalyBridge(unittest.TestCase):
             self.assertEqual(len(entries), 1)
             image = np.load(str(output / entries[0]["image_bgr"]), allow_pickle=False)
             coarse = np.load(str(output / entries[0]["coarse_map"]), allow_pickle=False)
+            semantic = np.load(
+                str(output / entries[0]["semantic_map"]), allow_pickle=False
+            )
             np.testing.assert_array_equal(image[0, 0], [30, 20, 10])
             self.assertEqual(coarse.dtype, np.float32)
+            self.assertEqual(semantic.dtype, np.int16)
 
     def test_refinement_calls_oasc_before_mbp_and_writes_map(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -316,6 +418,75 @@ class TestObjectomalyBridge(unittest.TestCase):
             ])
             refined = np.load(str(root / "out" / result["refined_map"]), allow_pickle=False)
             np.testing.assert_allclose(refined, 0.3)
+
+    def test_refinement_writes_global_fusion_artifacts(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            image_rel = Path("images/d/one.npy")
+            coarse_rel = Path("coarse/maskomaly/d/one.npy")
+            semantic_rel = Path("semantic/maskomaly/d/one.npy")
+            for relative, value in (
+                (image_rel, np.zeros((10, 10, 3), np.uint8)),
+                (coarse_rel, np.full((10, 10), 0.6, np.float32)),
+                (semantic_rel, np.full((10, 10), 10, np.int16)),
+            ):
+                (root / relative).parent.mkdir(parents=True, exist_ok=True)
+                np.save(str(root / relative), value, allow_pickle=False)
+            manifest = root / "inputs.json"
+            write_manifest(manifest, {"entries": []})
+            masks = np.zeros((1, 10, 10), dtype=bool)
+            masks[0, 4:6, 4:6] = True
+            bundle = SimpleNamespace(
+                n=1,
+                masks=masks,
+                area=np.array([4], np.int32),
+                quality=np.array([0.95], np.float32),
+                bbox=np.array([[4, 4, 6, 6]], np.int32),
+            )
+            dependencies = {
+                "has_bundle": lambda *args, **kwargs: False,
+                "postprocess": lambda value, **kwargs: value,
+                "save_bundle": lambda *args, **kwargs: None,
+                "load_bundle": lambda *args, **kwargs: bundle,
+                "apply_oasc": lambda coarse, *args, **kwargs: coarse,
+                "apply_mbp": lambda fused, *args, **kwargs: fused,
+            }
+            config = {
+                "sam": {"variant": "vit_h"},
+                "postprocess": {},
+                "oasc": {"variant": "test", "params": {}},
+                "global_fusion": {
+                    "enabled": True,
+                    "class_factors": {"10": 0.25},
+                    "background_class_ids": [10],
+                    "candidates": {"max_area_frac": 0.1, "min_score": 0.9},
+                    "clip": {"enabled": False},
+                },
+                "mbp": {"variant": "test", "params": {}},
+            }
+            entry = {
+                "dataset": "d",
+                "fid": "one",
+                "height": 10,
+                "width": 10,
+                "image_bgr": str(image_rel),
+                "coarse_map": str(coarse_rel),
+                "semantic_map": str(semantic_rel),
+                "source_model": "maskomaly",
+            }
+            result = refinement.refine_entry(
+                entry,
+                manifest,
+                root / "out",
+                config,
+                dependencies,
+                "all",
+                generator=SimpleNamespace(generate=lambda image: bundle),
+            )
+            self.assertIn("fused_map", result)
+            self.assertIn("protected_candidates", result)
+            fused = np.load(str(root / "out" / result["fused_map"]), allow_pickle=False)
+            np.testing.assert_allclose(fused, 0.15)
 
     def test_import_maps_every_official_frame_and_calculates_metrics(self):
         with tempfile.TemporaryDirectory() as temp:

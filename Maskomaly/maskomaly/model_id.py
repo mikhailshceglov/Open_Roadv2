@@ -84,6 +84,12 @@ class BaseSegmentationModel(BaseModel):
 
     def get_probs_and_seg(self, image):
         segmentation, mask_cls_result, mask_pred_result = self.model(image)
+        semantic_logits = segmentation.get("sem_seg")
+        if semantic_logits is None:
+            raise KeyError("Mask2Former output has no sem_seg")
+        self.last_semantic_segmentation = (
+            semantic_logits.argmax(0).detach().cpu().numpy().astype(np.int16)
+        )
 
         # print("segmentation: ", segmentation)
 

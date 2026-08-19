@@ -16,3 +16,4 @@ dependencies:
   - pip:
       - opencv-python-headless==4.9.0.80
       - segment-anything==1.0
+      - git+https://github.com/openai/CLIP.git@d50d76daa670286dd6cacf3bcd80b5e4823fc8e1

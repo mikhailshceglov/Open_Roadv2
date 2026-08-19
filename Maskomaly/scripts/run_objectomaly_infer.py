@@ -7,6 +7,7 @@ The two subcommands intentionally run in separate conda environments:
 """
 
 import argparse
+import gc
 import re
 from pathlib import Path
 import sys
@@ -25,12 +26,14 @@ from objectomaly_cache import (
     resolve_cached_path,
     validate_anomaly_map,
     validate_bgr_image,
+    validate_semantic_map,
     write_manifest,
 )
 
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 CUSTOM_DATASET_NAME = "custom-folder"
+DEFAULT_FOLDER_CONFIG = MASKOMALY_DIR / "configs" / "objectomaly_global_fusion.json"
 
 
 def build_parser():
@@ -60,7 +63,7 @@ def build_parser():
     )
     refine.add_argument("--manifest", required=True, type=Path)
     refine.add_argument("--output", required=True, type=Path)
-    refine.add_argument("--config", type=Path)
+    refine.add_argument("--config", type=Path, default=DEFAULT_FOLDER_CONFIG)
     refine.add_argument("--sam-checkpoint", required=True, type=Path)
     refine.add_argument("--device", default="cuda")
     refine.add_argument("--phase", choices=("all", "masks", "refine"), default="all")
@@ -118,11 +121,27 @@ def export_folder(args, model_loader=None):
         prediction = model.get_soft_mask(image)
         coarse = smiyc.prepare_anomaly_map(prediction, image.shape[:2])
         coarse = validate_anomaly_map(coarse, image.shape[:2])
+        semantic = getattr(model, "last_semantic_segmentation", None)
+        if semantic is None:
+            raise RuntimeError("Model did not expose last_semantic_segmentation")
+        semantic = np.asarray(semantic)
+        if semantic.shape != image.shape[:2]:
+            semantic = cv2.resize(
+                semantic.astype(np.int16),
+                (image.shape[1], image.shape[0]),
+                interpolation=cv2.INTER_NEAREST,
+            )
+        semantic = validate_semantic_map(semantic, image.shape[:2])
         fid = make_frame_id(index, relative)
 
         image_rel = Path("images") / CUSTOM_DATASET_NAME / (fid + ".npy")
         coarse_rel = Path("coarse") / args.model / CUSTOM_DATASET_NAME / (fid + ".npy")
-        for relative_cache, value in ((image_rel, image), (coarse_rel, coarse)):
+        semantic_rel = Path("semantic") / args.model / CUSTOM_DATASET_NAME / (fid + ".npy")
+        for relative_cache, value in (
+            (image_rel, image),
+            (coarse_rel, coarse),
+            (semantic_rel, semantic),
+        ):
             destination = output / relative_cache
             destination.parent.mkdir(parents=True, exist_ok=True)
             np.save(str(destination), value, allow_pickle=False)
@@ -136,6 +155,7 @@ def export_folder(args, model_loader=None):
                 "width": int(image.shape[1]),
                 "image_bgr": str(image_rel),
                 "coarse_map": str(coarse_rel),
+                "semantic_map": str(semantic_rel),
             }
         )
         print("[{}/{}] {}".format(index + 1, len(image_paths), relative.as_posix()))
@@ -161,6 +181,39 @@ def _score_to_uint8(score):
 def _overlay(image, score, cv2):
     heatmap = cv2.applyColorMap(_score_to_uint8(score), cv2.COLORMAP_JET)
     return cv2.addWeighted(image, 0.6, heatmap, 0.4, 0.0), heatmap
+
+
+def _label(image, value, cv2):
+    labeled = image.copy()
+    cv2.rectangle(labeled, (0, 0), (240, 36), (0, 0, 0), thickness=-1)
+    cv2.putText(
+        labeled,
+        value,
+        (10, 25),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.7,
+        (255, 255, 255),
+        2,
+        cv2.LINE_AA,
+    )
+    return labeled
+
+
+def _semantic_color(semantic):
+    palette = np.array(
+        [
+            [128, 64, 128], [232, 35, 244], [70, 70, 70], [156, 102, 102],
+            [153, 153, 190], [153, 153, 153], [30, 170, 250], [0, 220, 220],
+            [35, 142, 107], [152, 251, 152], [180, 130, 70], [60, 20, 220],
+            [0, 0, 255], [142, 0, 0], [70, 0, 0], [100, 60, 0], [100, 80, 0],
+            [230, 0, 0], [32, 11, 119],
+        ],
+        dtype=np.uint8,
+    )
+    result = np.zeros(semantic.shape + (3,), dtype=np.uint8)
+    valid = np.logical_and(semantic >= 0, semantic < len(palette))
+    result[valid] = palette[semantic[valid]]
+    return result
 
 
 def render_outputs(manifest_path: Path, output: Path, threshold: float):
@@ -191,22 +244,66 @@ def render_outputs(manifest_path: Path, output: Path, threshold: float):
             np.load(str(resolve_cached_path(input_manifest, entry["coarse_map"])), allow_pickle=False),
             target_hw,
         )
+        semantic = validate_semantic_map(
+            np.load(
+                str(resolve_cached_path(input_manifest, entry["semantic_map"])),
+                allow_pickle=False,
+            ),
+            target_hw,
+        )
+        if entry.get("fused_map"):
+            fused = validate_anomaly_map(
+                np.load(
+                    str(resolve_cached_path(manifest_path, entry["fused_map"])),
+                    allow_pickle=False,
+                ),
+                target_hw,
+            )
+        else:
+            fused = coarse
         refined = validate_anomaly_map(
             np.load(str(resolve_cached_path(manifest_path, entry["refined_map"])), allow_pickle=False),
             target_hw,
         )
         coarse_overlay, coarse_heatmap = _overlay(image, coarse, cv2)
+        fused_overlay, fused_heatmap = _overlay(image, fused, cv2)
         refined_overlay, refined_heatmap = _overlay(image, refined, cv2)
-        comparison = np.concatenate((image, coarse_overlay, refined_overlay), axis=1)
+        comparison = np.concatenate(
+            (
+                _label(image, "Input", cv2),
+                _label(coarse_overlay, "RAAS", cv2),
+                _label(fused_overlay, "Global fusion", cv2),
+                _label(refined_overlay, "Final", cv2),
+            ),
+            axis=1,
+        )
+        if entry.get("protected_candidates"):
+            protected = np.load(
+                str(resolve_cached_path(manifest_path, entry["protected_candidates"])),
+                allow_pickle=False,
+            ).astype(bool)
+        else:
+            protected = np.zeros(target_hw, dtype=bool)
+        if protected.shape != target_hw:
+            raise ValueError("Protected candidate mask has invalid shape")
+        candidate_overlay = image.copy()
+        candidate_overlay[protected] = (
+            0.35 * candidate_overlay[protected] + 0.65 * np.array([0, 0, 255])
+        ).astype(np.uint8)
         name = entry["fid"]
         destinations = {
             visual_root / "coarse_mask" / (name + ".png"): _score_to_uint8(coarse),
+            visual_root / "fused_mask" / (name + ".png"): _score_to_uint8(fused),
             visual_root / "refined_mask" / (name + ".png"): _score_to_uint8(refined),
             visual_root / "binary_mask" / (name + ".png"): (refined >= threshold).astype(np.uint8) * 255,
             visual_root / "coarse_heatmap" / (name + ".png"): coarse_heatmap,
+            visual_root / "fused_heatmap" / (name + ".png"): fused_heatmap,
             visual_root / "refined_heatmap" / (name + ".png"): refined_heatmap,
             visual_root / "coarse_overlay" / (name + ".jpg"): coarse_overlay,
+            visual_root / "fused_overlay" / (name + ".jpg"): fused_overlay,
             visual_root / "refined_overlay" / (name + ".jpg"): refined_overlay,
+            visual_root / "semantic" / (name + ".png"): _semantic_color(semantic),
+            visual_root / "protected_candidates" / (name + ".png"): candidate_overlay,
             visual_root / "comparison" / (name + ".jpg"): comparison,
         }
         for destination, value in destinations.items():
@@ -227,13 +324,28 @@ def refine_folder(args):
     refine_args = SimpleNamespace(
         manifest=manifest,
         output=output,
-        config=(args.config or refinement.DEFAULT_CONFIG),
+        config=args.config,
         sam_checkpoint=args.sam_checkpoint,
         device=args.device,
         phase=args.phase,
     )
+    if args.phase == "all":
+        # SAM ViT-H and CLIP are intentionally kept out of GPU memory at the
+        # same time. The subprocess-free two-pass flow also makes the SAM cache
+        # immediately reusable for prompt/fusion experiments.
+        refine_args.phase = "masks"
+        refinement.execute(refine_args)
+        gc.collect()
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except ImportError:
+            pass
+        refine_args.phase = "refine"
     refined_manifest = refinement.execute(refine_args)
-    if args.phase in ("all", "refine"):
+    if refine_args.phase == "refine":
         render_outputs(refined_manifest, output, args.threshold)
     return refined_manifest
 

@@ -1,3 +1,6 @@
 [submodule "third_party/road-anomaly-benchmark"]
 	path = third_party/road-anomaly-benchmark
 	url = https://github.com/SegmentMeIfYouCan/road-anomaly-benchmark.git
+[submodule "third_party/Objectomaly"]
+	path = third_party/Objectomaly
+	url = https://github.com/hon121215/Objectomaly.git

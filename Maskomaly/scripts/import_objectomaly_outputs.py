@@ -1,6 +1,7 @@
 """Import refined Objectomaly maps into the official SMIYC evaluator."""
 
 import argparse
+import json
 from pathlib import Path
 import sys
 
@@ -19,6 +20,26 @@ from objectomaly_cache import (
     validate_anomaly_map,
 )
 import run_smiyc_eval as smiyc
+
+
+def merge_summary_rows(output: Path, rows):
+    """Merge repeated model imports into one stable model/dataset summary."""
+    existing = []
+    summary_path = Path(output) / "summary.json"
+    if summary_path.is_file():
+        with summary_path.open(encoding="utf-8") as handle:
+            payload = json.load(handle)
+        if payload.get("unit") != "percent" or not isinstance(payload.get("results"), list):
+            raise ValueError("Unexpected existing summary format: {}".format(summary_path))
+        existing = payload["results"]
+    merged = {}
+    order = []
+    for row in list(existing) + list(rows):
+        key = (str(row["model"]), str(row["dataset"]))
+        if key not in merged:
+            order.append(key)
+        merged[key] = row
+    return [merged[key] for key in order]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -95,8 +116,9 @@ def execute(args, evaluation_class=None):
             rows.append(row)
 
     if rows:
-        smiyc.write_summary(rows, args.output)
-        smiyc.print_summary(rows)
+        combined_rows = merge_summary_rows(args.output, rows)
+        smiyc.write_summary(combined_rows, args.output)
+        smiyc.print_summary(combined_rows)
         print("Summary: {}".format(args.output / "summary.csv"))
     return rows
 

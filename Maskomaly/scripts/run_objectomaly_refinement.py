@@ -28,6 +28,7 @@ from objectomaly_cache import (
     write_manifest,
 )
 from global_fusion import apply_global_fusion, build_clip_validator
+from inference_timing import runtime_environment, timed_call, write_timing_report
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -192,8 +193,13 @@ def refine_entry(
     if phase in ("all", "masks"):
         if generator is None:
             raise RuntimeError("SAM generator is not initialized")
-        raw = generator.generate(image)
-        bundle = dependencies["postprocess"](raw, **config["postprocess"])
+        raw, sam_generate_s = timed_call(lambda: generator.generate(image))
+        bundle, sam_postprocess_s = timed_call(
+            lambda: dependencies["postprocess"](raw, **config["postprocess"])
+        )
+        bundle.timings = dict(getattr(bundle, "timings", {}))
+        bundle.timings["sam_generate_s"] = sam_generate_s
+        bundle.timings["sam_postprocess_s"] = sam_postprocess_s
         dependencies["save_bundle"](
             bundle,
             dataset,
@@ -214,10 +220,16 @@ def refine_entry(
 
     result = dict(entry)
     result["n_masks"] = int(bundle.n)
+    timings = dict(entry.get("timings", {}))
+    for key in ("sam_generate_s", "sam_postprocess_s"):
+        if key in getattr(bundle, "timings", {}):
+            timings[key] = float(bundle.timings[key])
     if phase in ("all", "refine"):
         oasc_cfg = config["oasc"]
-        calibrated = dependencies["apply_oasc"](
-            coarse, bundle, oasc_cfg["variant"], **oasc_cfg.get("params", {})
+        calibrated, timings["oasc_s"] = timed_call(
+            lambda: dependencies["apply_oasc"](
+                coarse, bundle, oasc_cfg["variant"], **oasc_cfg.get("params", {})
+            )
         )
         fusion_cfg = config.get("global_fusion", {})
         if isinstance(fusion_cfg, dict) and fusion_cfg.get("enabled", False):
@@ -234,14 +246,17 @@ def refine_entry(
                 ),
                 target_hw,
             )
-            calibrated, protected, diagnostics = apply_global_fusion(
-                calibrated,
-                semantic,
-                image,
-                bundle,
-                fusion_cfg,
-                clip_validator=clip_validator,
+            fusion_result, timings["global_fusion_s"] = timed_call(
+                lambda: apply_global_fusion(
+                    calibrated,
+                    semantic,
+                    image,
+                    bundle,
+                    fusion_cfg,
+                    clip_validator=clip_validator,
+                )
             )
+            calibrated, protected, diagnostics = fusion_result
             fused_rel = Path("fused") / str(entry["source_model"]) / dataset / (fid + ".npy")
             protected_rel = (
                 Path("protected_candidates")
@@ -259,16 +274,20 @@ def refine_entry(
             result["fused_map"] = str(fused_rel)
             result["protected_candidates"] = str(protected_rel)
             result["global_fusion"] = diagnostics
+        else:
+            timings["global_fusion_s"] = 0.0
         mbp_cfg = config["mbp"]
         mbp_params = dict(mbp_cfg.get("params", {}))
         if "gaussian_ksize" in mbp_params:
             mbp_params["gaussian_ksize"] = tuple(mbp_params["gaussian_ksize"])
-        refined = dependencies["apply_mbp"](
-            calibrated,
-            mbp_cfg["variant"],
-            image_bgr=image,
-            bundle=bundle,
-            **mbp_params
+        refined, timings["mbp_s"] = timed_call(
+            lambda: dependencies["apply_mbp"](
+                calibrated,
+                mbp_cfg["variant"],
+                image_bgr=image,
+                bundle=bundle,
+                **mbp_params
+            )
         )
         refined = validate_anomaly_map(refined, target_hw)
         refined_rel = Path("refined") / str(entry["source_model"]) / dataset / (fid + ".npy")
@@ -276,6 +295,23 @@ def refine_entry(
         refined_path.parent.mkdir(parents=True, exist_ok=True)
         np.save(str(refined_path), refined, allow_pickle=False)
         result["refined_map"] = str(refined_rel)
+        timings["objectomaly_refine_s"] = sum(
+            timings.get(key, 0.0)
+            for key in ("oasc_s", "global_fusion_s", "mbp_s")
+        )
+        timings["end_to_end_compute_s"] = sum(
+            timings.get(key, 0.0)
+            for key in (
+                "raas_inference_s",
+                "raas_postprocess_s",
+                "sam_generate_s",
+                "sam_postprocess_s",
+                "oasc_s",
+                "global_fusion_s",
+                "mbp_s",
+            )
+        )
+    result["timings"] = timings
     return result
 
 
@@ -317,8 +353,11 @@ def execute(args, dependencies=None, generator=None):
                 "Mask cache config differs from the current SAM/postprocess config"
             )
     dependencies = dependencies or load_dependencies()
+    setup_timings = dict(source.get("setup_timings_s", {}))
     if generator is None and args.phase in ("all", "masks"):
-        generator = _make_generator(args, config, dependencies)
+        generator, setup_timings["sam_generator_setup_s"] = timed_call(
+            lambda: _make_generator(args, config, dependencies)
+        )
     clip_validator = None
     fusion_cfg = config.get("global_fusion", {})
     if (
@@ -326,7 +365,9 @@ def execute(args, dependencies=None, generator=None):
         and isinstance(fusion_cfg, dict)
         and fusion_cfg.get("enabled", False)
     ):
-        clip_validator = build_clip_validator(fusion_cfg, args.device)
+        clip_validator, setup_timings["clip_model_load_s"] = timed_call(
+            lambda: build_clip_validator(fusion_cfg, args.device)
+        )
 
     entries = []
     for source_entry in source["entries"]:
@@ -356,9 +397,20 @@ def execute(args, dependencies=None, generator=None):
             "objectomaly_commit": OBJECTOMALY_COMMIT,
             "phase": args.phase,
             "config": config,
+            "setup_timings_s": setup_timings,
+            "runtime": runtime_environment(),
             "entries": entries,
         },
     )
+    if args.phase in ("all", "refine"):
+        csv_path, json_path = write_timing_report(
+            entries,
+            args.output,
+            source_model,
+            setup_timings=setup_timings,
+            runtime=runtime_environment(),
+        )
+        print("Timings: {} / {}".format(csv_path, json_path))
     print("Manifest: {}".format(manifest_path))
     return manifest_path
 

@@ -257,6 +257,28 @@ Import `results/objectomaly_global/manifest-objectomaly-maskomaly.json` with
 the same final metrics command. Keeping the output root separate prevents the
 experimental masks and scores from overwriting the baseline.
 
+For all three RAAS variants, the reproducible server launcher performs the
+complete export → shared SAM cache → global refinement → official metrics
+sequence across both SMIYC validation tracks:
+
+```bash
+bash Maskomaly/scripts/run_global_smiyc_eval.sh \
+  /path/to/datasets \
+  results/smiyc_global_fusion \
+  checkpoints/sam_vit_h_4b8939.pth
+```
+
+The combined six-row metric table is written to `metrics/summary.csv`.
+Per-frame CUDA-synchronized compute latency is written to
+`refined/timings-<model>.csv`; `timings-summary-<model>.json` reports all-frame
+and steady-state mean/p50/p95/max latency and FPS, plus per-dataset breakdowns,
+for RAAS, SAM, OASC, global-fusion/CLIP, MBP and their sequential end-to-end
+sum. The first frame is excluded from steady-state because SAM is initialized
+lazily. Image/cache
+IO, environment switching and metric calculation are intentionally excluded
+from online compute latency; model setup times and exact GPU/library versions
+are recorded separately in the JSON.
+
 Objectomaly currently has no project-level license. See
 [`docs/OBJECTOMALY_LICENSE_STATUS.md`](docs/OBJECTOMALY_LICENSE_STATUS.md)
 before redistributing or publishing the combined implementation.

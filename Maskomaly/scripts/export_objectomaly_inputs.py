@@ -4,6 +4,7 @@ import argparse
 import gc
 from pathlib import Path
 import sys
+import time
 
 import numpy as np
 
@@ -20,6 +21,7 @@ from objectomaly_cache import (
     validate_semantic_map,
     write_manifest,
 )
+from inference_timing import runtime_environment, timed_call
 import run_smiyc_eval as smiyc
 
 
@@ -49,7 +51,8 @@ def export_evaluation(evaluation, model, model_name: str, output: Path):
         fid = validate_frame_id(frame.fid)
         dataset = validate_frame_id(str(frame.dset_name))
         bgr = smiyc.rgb_to_bgr(frame.image)
-        prediction = model.get_soft_mask(bgr)
+        prediction, raas_inference_s = timed_call(lambda: model.get_soft_mask(bgr))
+        postprocess_started = time.perf_counter()
         coarse = smiyc.prepare_anomaly_map(prediction, bgr.shape[:2])
         coarse = validate_anomaly_map(coarse, bgr.shape[:2])
         semantic = getattr(model, "last_semantic_segmentation", None)
@@ -63,6 +66,7 @@ def export_evaluation(evaluation, model, model_name: str, output: Path):
                 interpolation=cv2.INTER_NEAREST,
             )
         semantic = validate_semantic_map(semantic, bgr.shape[:2])
+        raas_postprocess_s = float(time.perf_counter() - postprocess_started)
 
         image_rel = Path("images") / dataset / (fid + ".npy")
         coarse_rel = Path("coarse") / model_name / dataset / (fid + ".npy")
@@ -86,6 +90,10 @@ def export_evaluation(evaluation, model, model_name: str, output: Path):
                 "image_bgr": str(image_rel),
                 "coarse_map": str(coarse_rel),
                 "semantic_map": str(semantic_rel),
+                "timings": {
+                    "raas_inference_s": raas_inference_s,
+                    "raas_postprocess_s": raas_postprocess_s,
+                },
             }
         )
     if len(entries) != expected:
@@ -106,7 +114,7 @@ def execute(args, evaluation_class=None, model_loader=smiyc.load_model):
     manifests = []
     for model_name in args.models:
         print("Loading model: {}".format(model_name))
-        model = model_loader(model_name, args)
+        model, model_load_s = timed_call(lambda: model_loader(model_name, args))
         entries = []
         for dataset_name in smiyc.DATASETS:
             evaluation = evaluation_class(
@@ -124,6 +132,8 @@ def execute(args, evaluation_class=None, model_loader=smiyc.load_model):
                 "kind": "raas-objectomaly-inputs",
                 "source_model": model_name,
                 "objectomaly_commit": "66d2ad2a1b02d79389f4265d9d1d99ab6412324f",
+                "setup_timings_s": {"raas_model_load_s": model_load_s},
+                "runtime": runtime_environment(),
                 "entries": entries,
             },
         )

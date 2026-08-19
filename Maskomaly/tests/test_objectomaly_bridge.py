@@ -16,6 +16,7 @@ import export_objectomaly_inputs as exporter
 import import_objectomaly_outputs as importer
 import run_objectomaly_infer as folder_inference
 from global_fusion import apply_global_fusion
+from inference_timing import write_timing_report
 from objectomaly_cache import (
     index_entries,
     read_manifest,
@@ -43,6 +44,34 @@ class FakeGenerator:
 
 
 class TestObjectomalyCache(unittest.TestCase):
+    def test_timing_report_excludes_first_frame_from_steady_state(self):
+        with tempfile.TemporaryDirectory() as temp:
+            entries = [
+                {
+                    "dataset": "d",
+                    "fid": str(index),
+                    "timings": {"end_to_end_compute_s": value},
+                }
+                for index, value in enumerate((1.0, 0.1, 0.2))
+            ]
+            _, summary = write_timing_report(
+                entries,
+                Path(temp),
+                "model",
+                runtime={"gpu": "fake"},
+            )
+            import json
+
+            with summary.open(encoding="utf-8") as handle:
+                payload = json.load(handle)
+            self.assertEqual(payload["all_frames"]["frames"], 3)
+            self.assertEqual(payload["steady_state"]["frames"], 2)
+            self.assertEqual(payload["by_dataset"]["d"]["frames"], 3)
+            self.assertAlmostEqual(
+                payload["steady_state"]["stages"]["end_to_end_compute_s"]["mean_ms"],
+                150.0,
+            )
+
     def test_rejects_unsafe_ids_and_paths(self):
         with self.assertRaises(ValueError):
             validate_frame_id("../frame")
@@ -599,6 +628,13 @@ class TestObjectomalyBridge(unittest.TestCase):
             self.assertEqual(len(rows), 2)
             self.assertEqual(rows[0]["model"], "objectomaly_maskomaly")
             self.assertEqual(rows[0]["AUPR"], 80.0)
+            args.method_name = "objectomaly_global_maskomaly"
+            importer.execute(args, evaluation_class=Evaluation)
+            with (output / "summary.json").open(encoding="utf-8") as handle:
+                import json
+
+                combined = json.load(handle)["results"]
+            self.assertEqual(len(combined), 4)
 
 
 if __name__ == "__main__":

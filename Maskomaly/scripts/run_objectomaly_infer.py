@@ -11,6 +11,7 @@ import gc
 import re
 from pathlib import Path
 import sys
+import time
 from types import SimpleNamespace
 
 import numpy as np
@@ -29,6 +30,7 @@ from objectomaly_cache import (
     validate_semantic_map,
     write_manifest,
 )
+from inference_timing import runtime_environment, timed_call
 
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
@@ -110,7 +112,9 @@ def export_folder(args, model_loader=None):
         masks=args.masks,
         analysis_file=args.analysis_file,
     )
-    model = (model_loader or smiyc.load_model)(args.model, model_args)
+    model, model_load_s = timed_call(
+        lambda: (model_loader or smiyc.load_model)(args.model, model_args)
+    )
     entries = []
     for index, image_path in enumerate(image_paths):
         relative = image_path.relative_to(input_root)
@@ -118,7 +122,8 @@ def export_folder(args, model_loader=None):
         if image is None:
             raise RuntimeError("Cannot decode image: {}".format(image_path))
         image = validate_bgr_image(image)
-        prediction = model.get_soft_mask(image)
+        prediction, raas_inference_s = timed_call(lambda: model.get_soft_mask(image))
+        postprocess_started = time.perf_counter()
         coarse = smiyc.prepare_anomaly_map(prediction, image.shape[:2])
         coarse = validate_anomaly_map(coarse, image.shape[:2])
         semantic = getattr(model, "last_semantic_segmentation", None)
@@ -132,6 +137,7 @@ def export_folder(args, model_loader=None):
                 interpolation=cv2.INTER_NEAREST,
             )
         semantic = validate_semantic_map(semantic, image.shape[:2])
+        raas_postprocess_s = float(time.perf_counter() - postprocess_started)
         fid = make_frame_id(index, relative)
 
         image_rel = Path("images") / CUSTOM_DATASET_NAME / (fid + ".npy")
@@ -156,6 +162,10 @@ def export_folder(args, model_loader=None):
                 "image_bgr": str(image_rel),
                 "coarse_map": str(coarse_rel),
                 "semantic_map": str(semantic_rel),
+                "timings": {
+                    "raas_inference_s": raas_inference_s,
+                    "raas_postprocess_s": raas_postprocess_s,
+                },
             }
         )
         print("[{}/{}] {}".format(index + 1, len(image_paths), relative.as_posix()))
@@ -167,6 +177,8 @@ def export_folder(args, model_loader=None):
             "kind": "raas-objectomaly-folder-inputs",
             "source_model": args.model,
             "input_root": str(input_root),
+            "setup_timings_s": {"raas_model_load_s": model_load_s},
+            "runtime": runtime_environment(),
             "entries": entries,
         },
     )

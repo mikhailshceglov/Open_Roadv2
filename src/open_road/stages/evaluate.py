@@ -142,10 +142,17 @@ def run_evaluate(
     layout: RunLayout,
     *,
     threshold: float | None = None,
+    min_area: int = 0,
     method: str | None = None,
     report: Reporter = print,
 ) -> dict[str, Any]:
     """Score ``layout``'s maps against ``dataset``'s labels into ``metrics.json``.
+
+    ``min_area`` must be the same filter ``render`` applies. Scoring the raw
+    thresholded mask while shipping a filtered one measures a mask nobody would
+    deploy: on RoadAnomaly the unfiltered mask has 774 predicted components
+    against 298 ground-truth ones, and PPV is dominated by specks that never
+    reach the output.
 
     No method is loaded: evaluation reads only ``score_raw/``, which is why it
     runs in a plain environment even when the method's own pins do not.
@@ -191,21 +198,35 @@ def run_evaluate(
     pixel = pixel_metrics(gt_all, score_all)
     cut = pixel["threshold"] if threshold is None else threshold
 
+    from sklearn.metrics import average_precision_score
+
+    from open_road.stages.render import keep_components
+
     all_sious: list[float] = []
     all_ppvs: list[float] = []
     per_frame: list[dict[str, Any]] = []
     for stem, anomaly, score in frames:
         valid = ~np.isnan(score)
         prediction = np.where(valid, score >= cut, False)
+        if min_area > 0:
+            # The same filter render applies, so the mask that is scored is the
+            # mask that is shipped.
+            prediction, _regions = keep_components(prediction, min_area)
         sious, ppvs = component_metrics(anomaly, prediction)
         all_sious.extend(sious)
         all_ppvs.extend(ppvs)
 
         intersection = float(np.logical_and(anomaly, prediction).sum())
         f1_denominator = float(anomaly.sum() + prediction.sum())
+        # Per-frame AP is undefined without both classes present, which is why
+        # it is None rather than 0 on a frame that is entirely background.
+        frame_ap = None
+        if anomaly[valid].any() and not anomaly[valid].all():
+            frame_ap = round(float(average_precision_score(anomaly[valid], score[valid])), 4)
         per_frame.append(
             {
                 "frame": stem,
+                "AP": frame_ap,
                 "F1": round(2 * intersection / f1_denominator, 4) if f1_denominator else 1.0,
                 "anomaly_share": round(float(anomaly.sum()) / max(int(valid.sum()), 1), 6),
             }
@@ -219,6 +240,7 @@ def run_evaluate(
         "dataset": dataset.name,
         "frames": len(frames),
         "threshold": float(cut),
+        "min_area": int(min_area),
         "pixel": {
             **{key: round(value, 6) for key, value in pixel.items()},
             "TP": int((prediction_all & gt_all).sum()),
@@ -232,7 +254,11 @@ def run_evaluate(
 
     write_json(layout.metrics, metrics)
     _report(metrics, report)
-    update_manifest(layout, "evaluate", {"threshold": float(cut), "frames": len(frames)})
+    update_manifest(
+        layout,
+        "evaluate",
+        {"threshold": float(cut), "min_area": int(min_area), "frames": len(frames)},
+    )
     return metrics
 
 
@@ -242,7 +268,7 @@ def _report(metrics: dict[str, Any], report: Reporter) -> None:
     name = metrics.get("method") or "run"
 
     report(f"\n{name} on {metrics['dataset']} — {metrics['frames']} frames, "
-           f"threshold {metrics['threshold']:.4f}")
+           f"threshold {metrics['threshold']:.4f}, min_area {metrics['min_area']}")
     report("  pixel")
     for key in ("AP", "AUROC", "FPR95", "precision", "recall", "F1"):
         report(f"    {key:<12} {100 * pixel[key]:6.2f}%")

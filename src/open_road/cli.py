@@ -72,6 +72,19 @@ def _load_method(name: str) -> MethodSpec:
         raise typer.BadParameter(str(error)) from None
 
 
+def _spec_if_available(name: str) -> Optional[MethodSpec]:
+    """The spec, or None when the method's dependencies are absent.
+
+    Used by `eval`, which needs nothing from the method but would still like
+    its default min_area. Evaluation must keep working in an environment where
+    the method itself cannot be imported.
+    """
+    try:
+        return registry.load(name)
+    except Exception:  # noqa: BLE001 -- absence is expected here, not exceptional
+        return None
+
+
 def _method_settings(name: str, override: Optional[Path]) -> dict[str, Any]:
     path = Path(override) if override else _method_config_path(name)
     if not path.is_file():
@@ -185,11 +198,25 @@ def evaluate(
     threshold: Optional[float] = typer.Option(
         None, help="Operating point for the component metrics; default is the best-F1 threshold"
     ),
+    min_area: Optional[int] = typer.Option(
+        None, help="Component filter; must match render's. Defaults to the method's"
+    ),
 ) -> None:
     """Score the stored maps against the dataset's labels."""
     data = _load_dataset(dataset)
     layout = _layout(method, data.name)
-    run_evaluate(data, layout, threshold=threshold, method=method, report=typer.echo)
+    if min_area is None:
+        spec = _spec_if_available(method)
+        min_area = spec.default_min_area if spec else 0
+        if spec is None:
+            typer.echo(
+                f"{method} could not be imported, so its default min_area is unknown; "
+                f"using 0. Pass --min-area to match what render used.",
+                err=True,
+            )
+    run_evaluate(
+        data, layout, threshold=threshold, min_area=min_area, method=method, report=typer.echo
+    )
     typer.echo(f"\nmetrics -> {layout.metrics}")
 
 
@@ -202,7 +229,12 @@ def run(
     overwrite: bool = typer.Option(False, help="Re-score frames that already have a map"),
     draw: str = typer.Option("seg", help="seg, boxes, or both"),
 ) -> None:
-    """infer, then render, then eval."""
+    """infer, then eval, then render at the operating point eval found.
+
+    Eval runs before render on purpose. It sweeps the threshold and reports the
+    best-F1 operating point; rendering at the method's fixed default instead
+    would draw one mask and score a different one.
+    """
     spec = _load_method(method)
     data = _load_dataset(dataset)
     layout = _layout(method, data.name)
@@ -213,14 +245,18 @@ def run(
         limit=limit, overwrite=overwrite, report=typer.echo,
     )
 
-    typer.echo("\n== render ==")
-    run_render(spec, data, layout, mode=draw, report=typer.echo)
-
+    threshold = spec.default_threshold
     if data.has_labels:
         typer.echo("\n== eval ==")
-        run_evaluate(data, layout, method=method, report=typer.echo)
+        metrics = run_evaluate(
+            data, layout, min_area=spec.default_min_area, method=method, report=typer.echo
+        )
+        threshold = metrics["threshold"]
     else:
         typer.echo("\ndataset is unlabelled; skipping eval")
+
+    typer.echo(f"\n== render (threshold {threshold:.4f}) ==")
+    run_render(spec, data, layout, threshold=threshold, mode=draw, report=typer.echo)
 
     typer.echo(f"\nrun -> {layout.root}")
 

@@ -137,6 +137,47 @@ def test_metrics_json_is_written_and_names_the_run(tmp_path: Path) -> None:
     assert read_json(layout.manifest)["stages"]["evaluate"]["frames"] == 1
 
 
+def test_min_area_drops_specks_before_the_component_metrics(tmp_path: Path) -> None:
+    # render filters small components; evaluate must apply the same filter, or
+    # PPV is dominated by specks that never reach the output and the number
+    # describes a mask nobody would ship.
+    label = np.zeros((12, 12), dtype=np.uint8)
+    label[1:5, 1:5] = 1          # a real 16-pixel object
+    _frame(tmp_path, "frame", label)
+
+    score = np.full((12, 12), -1.0, dtype=np.float32)
+    score[1:5, 1:5] = 1.0        # found
+    score[10, 10] = 1.0          # a one-pixel false alarm
+    layout = _scores(tmp_path, "frame", score)
+    dataset = _dataset(tmp_path, anomaly_value=1)
+
+    unfiltered = run_evaluate(dataset, layout, threshold=0.0, report=lambda _: None)
+    filtered = run_evaluate(
+        dataset, layout, threshold=0.0, min_area=4, report=lambda _: None
+    )
+
+    assert unfiltered["component"]["predicted_components"] == 2
+    assert filtered["component"]["predicted_components"] == 1
+    assert filtered["component"]["PPV"] > unfiltered["component"]["PPV"]
+    assert filtered["min_area"] == 4
+
+
+def test_per_frame_ap_is_reported_and_is_none_without_both_classes(tmp_path: Path) -> None:
+    _frame(tmp_path, "mixed", np.array([[0, 1], [0, 1]], dtype=np.uint8))
+    _frame(tmp_path, "empty", np.array([[0, 0], [0, 0]], dtype=np.uint8))
+    layout = RunLayout(tmp_path / "run")
+    save_score(layout.score_path("mixed"), np.array([[0.0, 1.0], [0.0, 1.0]], dtype=np.float32))
+    save_score(layout.score_path("empty"), np.array([[0.0, 0.0], [0.0, 0.0]], dtype=np.float32))
+
+    metrics = run_evaluate(_dataset(tmp_path, anomaly_value=1), layout, report=lambda _: None)
+
+    by_frame = {row["frame"]: row["AP"] for row in metrics["per_frame"]}
+    assert by_frame["mixed"] == pytest.approx(1.0)
+    # AP is undefined on an all-background frame; None says so rather than 0
+    # pretending the model failed.
+    assert by_frame["empty"] is None
+
+
 def test_evaluating_without_score_maps_says_to_infer_first(tmp_path: Path) -> None:
     _frame(tmp_path, "frame", np.array([[0, 1]], dtype=np.uint8))
 

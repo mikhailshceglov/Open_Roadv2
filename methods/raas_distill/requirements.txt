@@ -1,0 +1,9 @@
+# Everything needed to run the released weights, and nothing else.
+# The training pipeline has its own file: train/requirements.txt.
+#
+# transformers is pinned hard: SegFormer's internal module names changed in 5.x
+# (encoder.block -> stages.blocks), and the released weights will not load on
+# the new layout.
+
+torch>=2.1
+transformers==4.44.2

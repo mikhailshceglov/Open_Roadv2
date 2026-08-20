@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "open-road"
+version = "0.1.0"
+description = "A skeleton for road-anomaly segmentation methods: one score map, shared render and metrics"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+
+# Deliberately thin. The skeleton reads score maps and labels; it never loads a
+# model, so `open-road render`, `eval` and `report` work in a bare environment
+# even when the method's own pins (a specific transformers, a detectron2 build)
+# are not installed. Methods declare their dependencies in
+# methods/<name>/requirements.txt.
+dependencies = [
+    "numpy>=1.24",
+    "opencv-python-headless>=4.8",
+    "pyyaml>=6.0",
+    "scikit-learn>=1.3",
+    "typer>=0.12",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+open-road = "open_road.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["open_road*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

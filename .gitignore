@@ -1,0 +1,45 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.DS_Store
+
+# Run artefacts. Score maps and overlays are reproducible from the checkpoint
+# and belong in object storage, not in git; metrics.json is small enough that a
+# run worth keeping can be committed by hand with `git add -f`.
+runs/*
+!runs/.gitkeep
+
+# Datasets are downloaded and prepared, never committed.
+data/*
+!data/.gitkeep
+
+# Model weights. The one exception is a method that ships a small checkpoint as
+# the point of the branch — RAAS-Distill's student is 14 MB — so per-method
+# weights under methods/ are allowed through.
+#
+# The leading slash matters: a bare `weights/` would also exclude
+# methods/<name>/weights/, and git cannot re-include a file whose parent
+# directory is excluded, so the negation below would silently do nothing.
+/weights/
+*.pt
+*.pth
+*.bin
+*.ckpt
+*.safetensors
+*.onnx
+!methods/*/weights/*.pt
+
+# Archives. The prototype repository accumulated 17.7 GB of these in its
+# working tree because nothing ignored them.
+*.zip
+*.tar
+*.tar.gz
+*.7z

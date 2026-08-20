@@ -1,0 +1,17 @@
+# SegmentMeIfYouCan, ObstacleTrack validation split.
+#
+# Kept alongside RoadAnomaly to keep the dataset abstraction honest: this is the
+# layout that differs in every field — a different image folder, a suffixed
+# label name, a real void class, and a filename prefix that separates the
+# labelled validation frames from the unlabelled test ones.
+#
+# Point $SMIYC_ROOT at the download, or edit `root`.
+
+name: smiyc_obstacle
+root: $SMIYC_ROOT/dataset_ObstacleTrack
+images_dir: images
+labels_dir: labels_masks
+label_suffix: _labels_semantic.png
+anomaly_value: 1
+void_value: 255
+pattern: validation

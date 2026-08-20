@@ -1,0 +1,20 @@
+# RoadAnomaly (Lis et al., 2019) — 60 frames, laid out flat by
+# scripts/prepare_road_anomaly.py.
+#
+# The published archive stores labels under frames/<name>.labels/ and encodes
+# anomaly as 2. The prepare script flattens both away and writes 0/1 masks, so
+# anomaly_value is 1 here and not 2. Running against the raw download instead
+# would silently score every method against an all-zero ground truth.
+#
+# `root` is expanded for environment variables, so $ROAD_ANOMALY_ROOT points
+# this elsewhere without editing a tracked file.
+
+name: road_anomaly
+root: data/road_anomaly
+images_dir: original
+labels_dir: labels
+label_suffix: .png
+anomaly_value: 1
+
+# RoadAnomaly annotates every pixel; there is nothing to ignore.
+void_value: null

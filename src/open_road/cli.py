@@ -1,0 +1,238 @@
+"""The command line: the same five verbs for every method.
+
+    open-road methods
+    open-road datasets
+    open-road infer  --method M --dataset D
+    open-road render --method M --dataset D
+    open-road eval   --method M --dataset D
+    open-road run    --method M --dataset D
+    open-road report --runs runs/a/road_anomaly runs/b/road_anomaly
+
+Only ``infer`` imports the method. ``render``, ``eval`` and ``report`` read the
+score maps on disk, so they work in a plain environment even when the method's
+own dependency pins are not installed there.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any, Optional
+
+import typer
+import yaml
+
+from open_road import registry
+from open_road.dataset import DatasetSpec
+from open_road.io import RunLayout
+from open_road.method import MethodSpec
+from open_road.paths import repo_root, run_dir
+from open_road.stages.evaluate import run_evaluate
+from open_road.stages.infer import run_infer
+from open_road.stages.render import run_render
+from open_road.stages.report import run_report
+
+HELP = """The same five verbs for every method.
+
+Start with `open-road methods` and `open-road datasets` to see what this branch
+has, then `open-road run --method M --dataset D` to score, render and evaluate
+in one go. Only `infer` imports the method: render, eval and report read the
+score maps from disk, so they work even where the method's own pins are not
+installed.
+"""
+
+app = typer.Typer(no_args_is_help=True, add_completion=False, help=HELP)
+
+METHOD_OPTION = typer.Option(..., "--method", "-m", help="Directory name under methods/")
+DATASET_OPTION = typer.Option("road_anomaly", "--dataset", "-d", help="Name under configs/datasets/")
+
+
+def _datasets_dir() -> Path:
+    return repo_root() / "configs" / "datasets"
+
+
+def _method_config_path(name: str) -> Path:
+    return repo_root() / "configs" / "methods" / f"{name}.yaml"
+
+
+def _load_dataset(name: str) -> DatasetSpec:
+    path = name if name.endswith((".yaml", ".yml")) else _datasets_dir() / f"{name}.yaml"
+    try:
+        return DatasetSpec.from_yaml(path)
+    except FileNotFoundError:
+        available = sorted(p.stem for p in _datasets_dir().glob("*.yaml"))
+        raise typer.BadParameter(
+            f"unknown dataset {name!r}; available: {', '.join(available) or 'none'}"
+        ) from None
+
+
+def _load_method(name: str) -> MethodSpec:
+    try:
+        return registry.load(name)
+    except LookupError as error:
+        raise typer.BadParameter(str(error)) from None
+
+
+def _method_settings(name: str, override: Optional[Path]) -> dict[str, Any]:
+    path = Path(override) if override else _method_config_path(name)
+    if not path.is_file():
+        return {}
+    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+
+def _layout(method: str, dataset: str) -> RunLayout:
+    return RunLayout(run_dir(method, dataset))
+
+
+@app.command()
+def methods() -> None:
+    """List the methods present on this branch."""
+    found = registry.discover()
+    if not found.working and not found.broken:
+        typer.echo(
+            "no methods on this branch. `main` carries the skeleton only — "
+            "check out a method branch, e.g. `git checkout raas-distill`."
+        )
+        raise typer.Exit()
+
+    for name in found.names:
+        spec = found.working[name]
+        typer.echo(f"{name:<20} {spec.description}")
+        typer.echo(
+            f"{'':<20} threshold {spec.default_threshold:g}  "
+            f"min_area {spec.default_min_area}  "
+            f"score range [{spec.score_range[0]:g}, {spec.score_range[1]:g}]"
+        )
+
+    for broken in found.broken:
+        typer.echo(f"{broken.name:<20} UNAVAILABLE — {broken.reason}", err=True)
+        typer.echo(
+            f"{'':<20} install it with: "
+            f"pip install -r methods/{broken.name}/requirements.txt",
+            err=True,
+        )
+
+
+@app.command()
+def datasets() -> None:
+    """List the datasets configured in configs/datasets/."""
+    paths = sorted(_datasets_dir().glob("*.yaml"))
+    if not paths:
+        typer.echo("no dataset configs in configs/datasets/")
+        raise typer.Exit()
+    for path in paths:
+        spec = DatasetSpec.from_yaml(path)
+        state = "ready" if spec.images_path.is_dir() else "MISSING"
+        labels = "labelled" if spec.has_labels else "unlabelled"
+        typer.echo(f"{spec.name:<20} {state:<8} {labels:<11} {spec.root}")
+
+
+@app.command()
+def infer(
+    method: str = METHOD_OPTION,
+    dataset: str = DATASET_OPTION,
+    config: Optional[Path] = typer.Option(None, help="Method YAML; defaults to configs/methods/<method>.yaml"),
+    limit: int = typer.Option(0, help="Score only the first N frames (0 = all)"),
+    overwrite: bool = typer.Option(False, help="Re-score frames that already have a map"),
+) -> None:
+    """Score every frame of a dataset and store the raw maps."""
+    spec = _load_method(method)
+    data = _load_dataset(dataset)
+    layout = _layout(method, data.name)
+    run_infer(
+        spec,
+        data,
+        layout,
+        _method_settings(method, config),
+        limit=limit,
+        overwrite=overwrite,
+        report=typer.echo,
+    )
+    typer.echo(f"scores -> {layout.score_raw}")
+
+
+@app.command()
+def render(
+    method: str = METHOD_OPTION,
+    dataset: str = DATASET_OPTION,
+    threshold: Optional[float] = typer.Option(None, help="Score cut; defaults to the method's"),
+    min_area: Optional[int] = typer.Option(None, help="Drop components smaller than this"),
+    draw: str = typer.Option("seg", help="seg, boxes, or both"),
+    alpha: float = typer.Option(0.5, help="Fill opacity"),
+    labels: bool = typer.Option(True, help="Outline ground truth when the dataset has it"),
+) -> None:
+    """Threshold the score maps into masks, regions and overlays."""
+    if draw not in {"seg", "boxes", "both"}:
+        raise typer.BadParameter("draw must be seg, boxes, or both")
+    spec = _load_method(method)
+    data = _load_dataset(dataset)
+    run_render(
+        spec,
+        data,
+        _layout(method, data.name),
+        threshold=threshold,
+        min_area=min_area,
+        mode=draw,
+        alpha=alpha,
+        draw_labels=labels,
+        report=typer.echo,
+    )
+
+
+@app.command("eval")
+def evaluate(
+    method: str = METHOD_OPTION,
+    dataset: str = DATASET_OPTION,
+    threshold: Optional[float] = typer.Option(
+        None, help="Operating point for the component metrics; default is the best-F1 threshold"
+    ),
+) -> None:
+    """Score the stored maps against the dataset's labels."""
+    data = _load_dataset(dataset)
+    layout = _layout(method, data.name)
+    run_evaluate(data, layout, threshold=threshold, method=method, report=typer.echo)
+    typer.echo(f"\nmetrics -> {layout.metrics}")
+
+
+@app.command()
+def run(
+    method: str = METHOD_OPTION,
+    dataset: str = DATASET_OPTION,
+    config: Optional[Path] = typer.Option(None, help="Method YAML"),
+    limit: int = typer.Option(0, help="Score only the first N frames (0 = all)"),
+    overwrite: bool = typer.Option(False, help="Re-score frames that already have a map"),
+    draw: str = typer.Option("seg", help="seg, boxes, or both"),
+) -> None:
+    """infer, then render, then eval."""
+    spec = _load_method(method)
+    data = _load_dataset(dataset)
+    layout = _layout(method, data.name)
+
+    typer.echo("== infer ==")
+    run_infer(
+        spec, data, layout, _method_settings(method, config),
+        limit=limit, overwrite=overwrite, report=typer.echo,
+    )
+
+    typer.echo("\n== render ==")
+    run_render(spec, data, layout, mode=draw, report=typer.echo)
+
+    if data.has_labels:
+        typer.echo("\n== eval ==")
+        run_evaluate(data, layout, method=method, report=typer.echo)
+    else:
+        typer.echo("\ndataset is unlabelled; skipping eval")
+
+    typer.echo(f"\nrun -> {layout.root}")
+
+
+@app.command()
+def report(
+    runs: list[Path] = typer.Option(..., "--runs", help="Run directories to compare"),
+    out: Optional[Path] = typer.Option(None, help="Write comparison.{md,csv,json} here"),
+) -> None:
+    """Put several runs' metrics side by side."""
+    run_report(runs, out, report=typer.echo)
+
+
+if __name__ == "__main__":
+    app()

@@ -79,10 +79,25 @@ open-road run --method raas --dataset road_anomaly
 detectron2 must be **built from source** inside `$RAAS_ROOT` (`pip install -e .`),
 never `pip install detectron2`.
 
-**`model_final_17c1ee.pkl` has no published URL.** It is the upstream Mask2Former
-Cityscapes Swin-L checkpoint (`maskformer2_swin_large_IN21k_384_bs16_90k`), but no
-branch of this project records a link or a hash for it. That is the one hard
-blocker, and it is why the numbers above are quoted rather than reproduced.
+### The checkpoint
+
+`model_final_17c1ee.pkl` is the upstream Mask2Former Cityscapes Swin-L model
+(`maskformer2_swin_large_IN21k_384_bs16_90k`, ImageNet-21k pretraining, 90k
+iterations). No branch of this project recorded a URL for it, which is what made
+these methods unreproducible; it is written down here now:
+
+```bash
+mkdir -p "$RAAS_ROOT/Maskomaly/maskomaly/ckpt"
+curl -L https://dl.fbaipublicfiles.com/maskformer/mask2former/cityscapes/semantic/\
+maskformer2_swin_large_IN21k_384_bs16_90k/model_final_17c1ee.pkl \
+  -o "$RAAS_ROOT/Maskomaly/maskomaly/ckpt/model_final_17c1ee.pkl"
+```
+
+All three variants share it — `maskomaly_id` and `maskomaly_ood` have no weights
+of their own, differing only in CLIP prompts and post-processing.
+
+The numbers above are still quoted rather than reproduced: the checkpoint was
+not present when this port was written.
 
 Since the method could not be run, correctness rests on `tests/test_raas_maths.py`,
 which pins every formula against hand-made query tensors — including a check that

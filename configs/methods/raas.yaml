@@ -1,0 +1,38 @@
+# RAAS / Maskomaly.
+#
+# Requires the RAAS monorepo as a separate checkout: export $RAAS_ROOT.
+# See methods/raas/README.md.
+
+# maskomaly      the soft mask alone; no CLIP, no candidate geometry
+# maskomaly_id   plus road-hole candidates arbitrated by CLIP over 19 known prompts
+# maskomaly_ood  the same, with 3 open-ended OOD prompts and a margin rule
+#
+# On SMIYC validation _id and _ood produced bit-identical metrics on all 40
+# frames. The cause was never established; treat it as an open question rather
+# than assuming the variants are interchangeable.
+variant: maskomaly
+
+device: auto
+
+# Write every intermediate map under runs/<method>/<dataset>/intermediate/.
+save_maps: true
+
+# Overrides for $RAAS_ROOT-relative defaults. Null means:
+#   config_file  Mask2Former/configs/cityscapes/semantic-segmentation/swin/
+#                maskformer2_swin_large_IN21k_384_bs16_90k.yaml
+#   checkpoint   Maskomaly/maskomaly/ckpt/model_final_17c1ee.pkl  (or $RAAS_WEIGHTS)
+config_file: null
+checkpoint: null
+
+# Blend of the rejection and promotion maps. Anything above 0.5 works; 0.6 is
+# what the published numbers used.
+rejection_weight: 0.6
+
+# Which Mask2Former query segments road. Only used by the _id and _ood variants.
+road_query: 20
+
+# An .npz with a `cp` array re-ranks the anomaly queries instead of using the
+# SMIYC-tuned [49, 31, 83, 32]. Note the plain `maskomaly` variant computes the
+# ranking and then ignores it — its loop hardcodes the defaults.
+analysis_file: null
+masks: 4

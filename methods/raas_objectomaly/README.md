@@ -34,6 +34,35 @@ is to run `raas` alone and feed its `score_raw/` here. That path is deliberately
 **not implemented**: writing it before anyone needs it would be guessing at the
 shape of a problem that may not exist.
 
+## Weights
+
+Two checkpoints to fetch by hand, plus CLIP's, which fetches itself.
+
+**Mask2Former Swin-L, Cityscapes semantic** — shared by all three RAAS variants;
+`_id` and `_ood` have no weights of their own, differing only in CLIP prompts and
+post-processing:
+
+```bash
+mkdir -p "$RAAS_ROOT/Maskomaly/maskomaly/ckpt"
+curl -L https://dl.fbaipublicfiles.com/maskformer/mask2former/cityscapes/semantic/\
+maskformer2_swin_large_IN21k_384_bs16_90k/model_final_17c1ee.pkl \
+  -o "$RAAS_ROOT/Maskomaly/maskomaly/ckpt/model_final_17c1ee.pkl"
+```
+
+**SAM ViT-H** — `-C -` resumes an interrupted download. The digest is verified on
+load, because SAM ships several checkpoints with similar names and the wrong one
+degrades results silently rather than failing:
+
+```bash
+curl -L -C - https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth \
+  -o checkpoints/sam_vit_h_4b8939.pth
+md5sum checkpoints/sam_vit_h_4b8939.pth   # 4b8939a88964f0f4ff5f5b2642c598a6
+```
+
+**Objectomaly ships no weights at all** — OASC and MBP are algorithms with no
+checkpoints. Only the source is needed, and it must stay unmodified; see
+[Licensing](#licensing).
+
 ## Running it
 
 ```bash

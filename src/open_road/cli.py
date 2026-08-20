@@ -146,21 +146,28 @@ def infer(
     config: Optional[Path] = typer.Option(None, help="Method YAML; defaults to configs/methods/<method>.yaml"),
     limit: int = typer.Option(0, help="Score only the first N frames (0 = all)"),
     overwrite: bool = typer.Option(False, help="Re-score frames that already have a map"),
+    save_intermediate: bool = typer.Option(
+        True, help="Write the method's internal maps under intermediate/, when it exposes any"
+    ),
 ) -> None:
     """Score every frame of a dataset and store the raw maps."""
     spec = _load_method(method)
     data = _load_dataset(dataset)
     layout = _layout(method, data.name)
-    run_infer(
+    summary = run_infer(
         spec,
         data,
         layout,
         _method_settings(method, config),
         limit=limit,
         overwrite=overwrite,
+        save_intermediate=save_intermediate,
         report=typer.echo,
     )
-    typer.echo(f"scores -> {layout.score_raw}")
+    typer.echo(f"scores  -> {layout.score_raw}")
+    typer.echo(f"preview -> {layout.soft_mask}")
+    if summary.get("intermediate"):
+        typer.echo(f"internals -> {layout.intermediate}")
 
 
 @app.command()
@@ -228,6 +235,9 @@ def run(
     limit: int = typer.Option(0, help="Score only the first N frames (0 = all)"),
     overwrite: bool = typer.Option(False, help="Re-score frames that already have a map"),
     draw: str = typer.Option("seg", help="seg, boxes, or both"),
+    save_intermediate: bool = typer.Option(
+        True, help="Write the method's internal maps under intermediate/"
+    ),
 ) -> None:
     """infer, then eval, then render at the operating point eval found.
 
@@ -240,9 +250,10 @@ def run(
     layout = _layout(method, data.name)
 
     typer.echo("== infer ==")
-    run_infer(
+    summary = run_infer(
         spec, data, layout, _method_settings(method, config),
-        limit=limit, overwrite=overwrite, report=typer.echo,
+        limit=limit, overwrite=overwrite, save_intermediate=save_intermediate,
+        report=typer.echo,
     )
 
     threshold = spec.default_threshold
@@ -258,7 +269,11 @@ def run(
     typer.echo(f"\n== render (threshold {threshold:.4f}) ==")
     run_render(spec, data, layout, threshold=threshold, mode=draw, report=typer.echo)
 
-    typer.echo(f"\nrun -> {layout.root}")
+    typer.echo(f"\nrun      -> {layout.root}")
+    typer.echo(f"overlays -> {layout.overlay}")
+    typer.echo(f"masks    -> {layout.mask}")
+    if summary.get("intermediate"):
+        typer.echo(f"internals-> {layout.intermediate}")
 
 
 @app.command()

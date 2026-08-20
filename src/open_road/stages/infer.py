@@ -15,7 +15,14 @@ import time
 from typing import Any, Callable, Mapping
 
 from open_road.dataset import DatasetSpec
-from open_road.io import RunLayout, load_image, save_score, save_soft_mask, update_manifest
+from open_road.io import (
+    RunLayout,
+    load_image,
+    save_debug,
+    save_score,
+    save_soft_mask,
+    update_manifest,
+)
 from open_road.method import MethodSpec
 
 Reporter = Callable[[str], None]
@@ -29,6 +36,7 @@ def run_infer(
     *,
     limit: int = 0,
     overwrite: bool = False,
+    save_intermediate: bool = True,
     report: Reporter = print,
 ) -> dict[str, Any]:
     """Score every frame in ``dataset``, writing into ``layout``."""
@@ -67,6 +75,13 @@ def run_infer(
 
         save_score(layout.score_path(path.stem), score)
         save_soft_mask(layout.soft_mask_path(path.stem), spec.to_unit(score))
+
+        # Opt-in, and the stage stays ignorant of what any of it means: a
+        # method that wants its internals on disk leaves them in `last_debug`.
+        debug = getattr(scorer, "last_debug", None)
+        if save_intermediate and debug:
+            save_debug(layout.intermediate / path.stem, debug)
+
         report(
             f"  [{index}/{len(pending)}] {path.name}  "
             f"max {float(score.max()):.3f}  {elapsed[-1] * 1000:.0f} ms"
@@ -82,6 +97,7 @@ def run_infer(
         "scored": len(pending),
         "skipped": len(frames) - len(pending),
         "seconds_per_frame": round(seconds_per_frame, 4),
+        "intermediate": save_intermediate and bool(getattr(scorer, "last_debug", None)),
         "settings": dict(settings),
     }
     update_manifest(layout, "infer", {"method": spec.name, "dataset": dataset.name, **summary})

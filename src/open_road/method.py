@@ -36,6 +36,13 @@ class Scorer(Protocol):
         methods that run at a different internal resolution resize before
         returning, because only the method knows the right interpolation for
         its own output.
+
+        **Optional**: a scorer may leave a ``last_debug`` dict on itself after
+        each call, mapping a name to an intermediate array (or to anything
+        JSON-serialisable). ``infer`` writes those under
+        ``runs/<method>/<dataset>/intermediate/<stem>/`` without interpreting
+        them. A pipeline of several stages is otherwise a black box, and the
+        maps between its stages are where its failures are visible.
         """
 
 

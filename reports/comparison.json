@@ -1,0 +1,796 @@
+[
+  {
+    "method": "raas_distill",
+    "dataset": "road_anomaly",
+    "frames": 60,
+    "threshold": 0.7413038015365601,
+    "min_area": 200,
+    "pixel": {
+      "AP": 0.755901,
+      "AUROC": 0.963571,
+      "FPR95": 0.190602,
+      "F1": 0.738464,
+      "precision": 0.677086,
+      "recall": 0.81208,
+      "threshold": 0.741304,
+      "TP": 4422923,
+      "FP": 2109371,
+      "FN": 1023490,
+      "void_pixels": 0
+    },
+    "component": {
+      "sIoU_gt": 0.33159448537623265,
+      "PPV": 0.4782499588298939,
+      "F1_star": 0.3823848328943847,
+      "gt_components": 298,
+      "predicted_components": 322,
+      "tau_0.5": {
+        "precision": 0.4128787878787879,
+        "recall": 0.36577181208053694,
+        "F1": 0.38790035587188615,
+        "TP": 109,
+        "FP": 155,
+        "FN": 189
+      }
+    },
+    "per_frame": [
+      {
+        "frame": "obstacles12_rocks6",
+        "AP": 0.0336,
+        "F1": 0.0,
+        "anomaly_share": 0.036287
+      },
+      {
+        "frame": "vehicle01_man_carrying_dry_grass_on_bicycle",
+        "AP": 0.0903,
+        "F1": 0.0,
+        "anomaly_share": 0.129524
+      },
+      {
+        "frame": "lost_tires03",
+        "AP": 0.1385,
+        "F1": 0.0623,
+        "anomaly_share": 0.006952
+      },
+      {
+        "frame": "obstacles12_rocks4",
+        "AP": 0.1297,
+        "F1": 0.0966,
+        "anomaly_share": 0.063107
+      },
+      {
+        "frame": "vehicle03_Fuhrwerke_in_China",
+        "AP": 0.278,
+        "F1": 0.1032,
+        "anomaly_share": 0.076813
+      },
+      {
+        "frame": "animals13_jeune_bovin_sur_la_route",
+        "AP": 0.5882,
+        "F1": 0.1393,
+        "anomaly_share": 0.015785
+      },
+      {
+        "frame": "lost_tires08",
+        "AP": 0.6608,
+        "F1": 0.162,
+        "anomaly_share": 0.003747
+      },
+      {
+        "frame": "animals11_Cock_Pheasant_on_Romford_Road",
+        "AP": 0.8731,
+        "F1": 0.2332,
+        "anomaly_share": 0.009246
+      },
+      {
+        "frame": "obstacles08_boulder2",
+        "AP": 0.7307,
+        "F1": 0.2443,
+        "anomaly_share": 0.013521
+      },
+      {
+        "frame": "animals08_on_the_main_street_of_village_Lin_Albania",
+        "AP": 0.415,
+        "F1": 0.2445,
+        "anomaly_share": 0.017633
+      },
+      {
+        "frame": "lost_tires09",
+        "AP": 0.7595,
+        "F1": 0.2691,
+        "anomaly_share": 0.009926
+      },
+      {
+        "frame": "obstacles04_cardboard_czech_hedgehog",
+        "AP": 0.2346,
+        "F1": 0.2954,
+        "anomaly_share": 0.047529
+      },
+      {
+        "frame": "animals16_Donkeys_of_Morocco",
+        "AP": 0.6983,
+        "F1": 0.3227,
+        "anomaly_share": 0.311757
+      },
+      {
+        "frame": "animals17_E6_near_Kvaenangen",
+        "AP": 0.7206,
+        "F1": 0.4314,
+        "anomaly_share": 0.016235
+      },
+      {
+        "frame": "cones06_VnA_traffic_cones",
+        "AP": 0.2787,
+        "F1": 0.4593,
+        "anomaly_share": 0.049941
+      },
+      {
+        "frame": "cones04_Federation",
+        "AP": 0.5036,
+        "F1": 0.4706,
+        "anomaly_share": 0.013124
+      },
+      {
+        "frame": "cones05_Corner_of_Kingsley_Park",
+        "AP": 0.4713,
+        "F1": 0.4751,
+        "anomaly_share": 0.010967
+      },
+      {
+        "frame": "cones01_Beeston_MMB_A6_Middle_Street",
+        "AP": 0.4299,
+        "F1": 0.4906,
+        "anomaly_share": 0.042637
+      },
+      {
+        "frame": "cones07",
+        "AP": 0.6987,
+        "F1": 0.5328,
+        "anomaly_share": 0.013697
+      },
+      {
+        "frame": "obstacles07_czech_hedgehog",
+        "AP": 0.9696,
+        "F1": 0.6585,
+        "anomaly_share": 0.246829
+      },
+      {
+        "frame": "animals19_Porte_de_Roubaix",
+        "AP": 0.4902,
+        "F1": 0.6629,
+        "anomaly_share": 0.09426
+      },
+      {
+        "frame": "animals01_Guiguinto_railway_station_Calves",
+        "AP": 0.714,
+        "F1": 0.6899,
+        "anomaly_share": 0.067076
+      },
+      {
+        "frame": "animals18_Goose_on_the_road_Memphis",
+        "AP": 0.6337,
+        "F1": 0.7305,
+        "anomaly_share": 0.013012
+      },
+      {
+        "frame": "animals21_On_The_Road_to_Gondar_Ethiopia",
+        "AP": 0.9213,
+        "F1": 0.7359,
+        "anomaly_share": 0.152205
+      },
+      {
+        "frame": "animals04_17_animal_casualties_so_far_in_2006",
+        "AP": 0.9158,
+        "F1": 0.7405,
+        "anomaly_share": 0.066021
+      },
+      {
+        "frame": "cones02_Broadmoor_Manhole_Cones",
+        "AP": 0.8223,
+        "F1": 0.7542,
+        "anomaly_share": 0.065629
+      },
+      {
+        "frame": "obstacles12_rocks2",
+        "AP": 0.8439,
+        "F1": 0.7738,
+        "anomaly_share": 0.00628
+      },
+      {
+        "frame": "animals15_Doebeln_Pferdebahn",
+        "AP": 0.5878,
+        "F1": 0.7872,
+        "anomaly_share": 0.103824
+      },
+      {
+        "frame": "obstacles12_rocks5",
+        "AP": 0.8864,
+        "F1": 0.8032,
+        "anomaly_share": 0.018143
+      },
+      {
+        "frame": "cones03_Bang_Na_Trat_Highway",
+        "AP": 0.9115,
+        "F1": 0.8056,
+        "anomaly_share": 0.014261
+      },
+      {
+        "frame": "obstacles03_cardboard_czech_hedgehog",
+        "AP": 0.876,
+        "F1": 0.8218,
+        "anomaly_share": 0.074018
+      },
+      {
+        "frame": "animals24_Sheep_Herders_Block_the_Road_Kaleybar_to_Eskanlu",
+        "AP": 0.9953,
+        "F1": 0.8394,
+        "anomaly_share": 0.367161
+      },
+      {
+        "frame": "obstacles02_rock",
+        "AP": 0.9583,
+        "F1": 0.846,
+        "anomaly_share": 0.164517
+      },
+      {
+        "frame": "animals05_cows_near_Phonsavan_Laos",
+        "AP": 0.958,
+        "F1": 0.8661,
+        "anomaly_share": 0.146101
+      },
+      {
+        "frame": "cones08_can",
+        "AP": 0.9247,
+        "F1": 0.8782,
+        "anomaly_share": 0.020193
+      },
+      {
+        "frame": "animals10_bovine_cattle_beside_road",
+        "AP": 0.9591,
+        "F1": 0.8807,
+        "anomaly_share": 0.027731
+      },
+      {
+        "frame": "animals07_Aihole_Pattadakal",
+        "AP": 0.9687,
+        "F1": 0.889,
+        "anomaly_share": 0.081955
+      },
+      {
+        "frame": "obstacles11_boulder5",
+        "AP": 0.9595,
+        "F1": 0.8933,
+        "anomaly_share": 0.227217
+      },
+      {
+        "frame": "animals26_Unnamed_Road_Kazakhstan",
+        "AP": 0.9318,
+        "F1": 0.8991,
+        "anomaly_share": 0.049135
+      },
+      {
+        "frame": "animals25_jablonna_dziki",
+        "AP": 0.929,
+        "F1": 0.9041,
+        "anomaly_share": 0.135243
+      },
+      {
+        "frame": "animals20_Marcassin_Conchiglio",
+        "AP": 0.9549,
+        "F1": 0.9052,
+        "anomaly_share": 0.043229
+      },
+      {
+        "frame": "obstacles01_boulder",
+        "AP": 0.9857,
+        "F1": 0.9083,
+        "anomaly_share": 0.164558
+      },
+      {
+        "frame": "animals30",
+        "AP": 0.9808,
+        "F1": 0.922,
+        "anomaly_share": 0.066438
+      },
+      {
+        "frame": "animals12_Collared_Peccary_crossing_the_road",
+        "AP": 0.9753,
+        "F1": 0.9244,
+        "anomaly_share": 0.130275
+      },
+      {
+        "frame": "animals31_deer",
+        "AP": 0.9866,
+        "F1": 0.935,
+        "anomaly_share": 0.057104
+      },
+      {
+        "frame": "animals14_Dekemhare_Road",
+        "AP": 0.9837,
+        "F1": 0.9352,
+        "anomaly_share": 0.099614
+      },
+      {
+        "frame": "animals29_Zebra_Crossing_Abbey_Road_Style",
+        "AP": 0.9463,
+        "F1": 0.9359,
+        "anomaly_share": 0.070281
+      },
+      {
+        "frame": "animals22_red_fox_on_road",
+        "AP": 0.9869,
+        "F1": 0.9421,
+        "anomaly_share": 0.199051
+      },
+      {
+        "frame": "animals28",
+        "AP": 0.9932,
+        "F1": 0.9526,
+        "anomaly_share": 0.080245
+      },
+      {
+        "frame": "obstacles06_cardboard_czech_hedgehog",
+        "AP": 0.9911,
+        "F1": 0.9542,
+        "anomaly_share": 0.046476
+      },
+      {
+        "frame": "animals09_working_together",
+        "AP": 0.9895,
+        "F1": 0.9554,
+        "anomaly_share": 0.423286
+      },
+      {
+        "frame": "vehicle02_Broadmoor_Cones_Skidloader",
+        "AP": 0.9914,
+        "F1": 0.9573,
+        "anomaly_share": 0.099709
+      },
+      {
+        "frame": "obstacles10_boulder4",
+        "AP": 0.9739,
+        "F1": 0.959,
+        "anomaly_share": 0.190521
+      },
+      {
+        "frame": "obstacles05_cardboard_czech_hedgehog",
+        "AP": 0.9932,
+        "F1": 0.9626,
+        "anomaly_share": 0.074065
+      },
+      {
+        "frame": "animals23_rhino_crossing_road",
+        "AP": 0.9956,
+        "F1": 0.9654,
+        "anomaly_share": 0.292174
+      },
+      {
+        "frame": "animals02_Zagori_On_the_road_to_Papigko",
+        "AP": 0.9939,
+        "F1": 0.9673,
+        "anomaly_share": 0.007992
+      },
+      {
+        "frame": "animals06_sheep_roads_lambs",
+        "AP": 0.9979,
+        "F1": 0.9753,
+        "anomaly_share": 0.368458
+      },
+      {
+        "frame": "animals03_Zebras_in_the_road",
+        "AP": 0.9976,
+        "F1": 0.976,
+        "anomaly_share": 0.233743
+      },
+      {
+        "frame": "animals27_wildlife_bear",
+        "AP": 0.9981,
+        "F1": 0.9814,
+        "anomaly_share": 0.181874
+      },
+      {
+        "frame": "obstacles09_boulder3",
+        "AP": 0.9993,
+        "F1": 0.9863,
+        "anomaly_share": 0.051404
+      }
+    ]
+  },
+  {
+    "method": "ooddino",
+    "dataset": "road_anomaly",
+    "frames": 60,
+    "threshold": 0.6845594048500061,
+    "min_area": 100,
+    "pixel": {
+      "AP": 0.31887,
+      "AUROC": 0.669948,
+      "FPR95": 0.92372,
+      "F1": 0.4856,
+      "precision": 0.783411,
+      "recall": 0.351847,
+      "threshold": 0.684559,
+      "TP": 1916305,
+      "FP": 529799,
+      "FN": 3530108,
+      "void_pixels": 0
+    },
+    "component": {
+      "sIoU_gt": 0.19116273943555445,
+      "PPV": 0.6830015348806868,
+      "F1_star": 0.30905637088634025,
+      "gt_components": 298,
+      "predicted_components": 118,
+      "tau_0.5": {
+        "precision": 0.6629213483146067,
+        "recall": 0.19798657718120805,
+        "F1": 0.3049095607235142,
+        "TP": 59,
+        "FP": 30,
+        "FN": 239
+      }
+    },
+    "per_frame": [
+      {
+        "frame": "animals01_Guiguinto_railway_station_Calves",
+        "AP": 0.0671,
+        "F1": 0.0,
+        "anomaly_share": 0.067076
+      },
+      {
+        "frame": "animals03_Zebras_in_the_road",
+        "AP": 0.2337,
+        "F1": 0.0,
+        "anomaly_share": 0.233743
+      },
+      {
+        "frame": "animals06_sheep_roads_lambs",
+        "AP": 0.3685,
+        "F1": 0.0,
+        "anomaly_share": 0.368458
+      },
+      {
+        "frame": "animals07_Aihole_Pattadakal",
+        "AP": 0.082,
+        "F1": 0.0,
+        "anomaly_share": 0.081955
+      },
+      {
+        "frame": "animals08_on_the_main_street_of_village_Lin_Albania",
+        "AP": 0.0176,
+        "F1": 0.0,
+        "anomaly_share": 0.017633
+      },
+      {
+        "frame": "animals10_bovine_cattle_beside_road",
+        "AP": 0.0277,
+        "F1": 0.0,
+        "anomaly_share": 0.027731
+      },
+      {
+        "frame": "animals13_jeune_bovin_sur_la_route",
+        "AP": 0.0158,
+        "F1": 0.0,
+        "anomaly_share": 0.015785
+      },
+      {
+        "frame": "animals14_Dekemhare_Road",
+        "AP": 0.0996,
+        "F1": 0.0,
+        "anomaly_share": 0.099614
+      },
+      {
+        "frame": "animals16_Donkeys_of_Morocco",
+        "AP": 0.3118,
+        "F1": 0.0,
+        "anomaly_share": 0.311757
+      },
+      {
+        "frame": "animals19_Porte_de_Roubaix",
+        "AP": 0.0943,
+        "F1": 0.0,
+        "anomaly_share": 0.09426
+      },
+      {
+        "frame": "animals20_Marcassin_Conchiglio",
+        "AP": 0.043,
+        "F1": 0.0,
+        "anomaly_share": 0.043229
+      },
+      {
+        "frame": "animals22_red_fox_on_road",
+        "AP": 0.1991,
+        "F1": 0.0,
+        "anomaly_share": 0.199051
+      },
+      {
+        "frame": "animals27_wildlife_bear",
+        "AP": 0.1819,
+        "F1": 0.0,
+        "anomaly_share": 0.181874
+      },
+      {
+        "frame": "animals29_Zebra_Crossing_Abbey_Road_Style",
+        "AP": 0.0703,
+        "F1": 0.0,
+        "anomaly_share": 0.070281
+      },
+      {
+        "frame": "lost_tires03",
+        "AP": 0.007,
+        "F1": 0.0,
+        "anomaly_share": 0.006952
+      },
+      {
+        "frame": "obstacles01_boulder",
+        "AP": 0.1646,
+        "F1": 0.0,
+        "anomaly_share": 0.164558
+      },
+      {
+        "frame": "obstacles07_czech_hedgehog",
+        "AP": 0.2465,
+        "F1": 0.0,
+        "anomaly_share": 0.246829
+      },
+      {
+        "frame": "obstacles12_rocks6",
+        "AP": 0.0363,
+        "F1": 0.0,
+        "anomaly_share": 0.036287
+      },
+      {
+        "frame": "cones06_VnA_traffic_cones",
+        "AP": 0.0499,
+        "F1": 0.0006,
+        "anomaly_share": 0.049941
+      },
+      {
+        "frame": "cones03_Bang_Na_Trat_Highway",
+        "AP": 0.0141,
+        "F1": 0.0036,
+        "anomaly_share": 0.014261
+      },
+      {
+        "frame": "cones01_Beeston_MMB_A6_Middle_Street",
+        "AP": 0.0698,
+        "F1": 0.0874,
+        "anomaly_share": 0.042637
+      },
+      {
+        "frame": "animals04_17_animal_casualties_so_far_in_2006",
+        "AP": 0.103,
+        "F1": 0.0936,
+        "anomaly_share": 0.066021
+      },
+      {
+        "frame": "animals25_jablonna_dziki",
+        "AP": 0.188,
+        "F1": 0.1264,
+        "anomaly_share": 0.135243
+      },
+      {
+        "frame": "animals09_working_together",
+        "AP": 0.5117,
+        "F1": 0.2734,
+        "anomaly_share": 0.423286
+      },
+      {
+        "frame": "animals05_cows_near_Phonsavan_Laos",
+        "AP": 0.3091,
+        "F1": 0.3219,
+        "anomaly_share": 0.146101
+      },
+      {
+        "frame": "animals24_Sheep_Herders_Block_the_Road_Kaleybar_to_Eskanlu",
+        "AP": 0.4924,
+        "F1": 0.3295,
+        "anomaly_share": 0.367161
+      },
+      {
+        "frame": "animals21_On_The_Road_to_Gondar_Ethiopia",
+        "AP": 0.3565,
+        "F1": 0.3908,
+        "anomaly_share": 0.152205
+      },
+      {
+        "frame": "vehicle03_Fuhrwerke_in_China",
+        "AP": 0.2938,
+        "F1": 0.395,
+        "anomaly_share": 0.076813
+      },
+      {
+        "frame": "animals15_Doebeln_Pferdebahn",
+        "AP": 0.2938,
+        "F1": 0.4571,
+        "anomaly_share": 0.103824
+      },
+      {
+        "frame": "animals23_rhino_crossing_road",
+        "AP": 0.5182,
+        "F1": 0.4919,
+        "anomaly_share": 0.292174
+      },
+      {
+        "frame": "obstacles12_rocks5",
+        "AP": 0.5847,
+        "F1": 0.74,
+        "anomaly_share": 0.018143
+      },
+      {
+        "frame": "obstacles12_rocks2",
+        "AP": 0.638,
+        "F1": 0.7909,
+        "anomaly_share": 0.00628
+      },
+      {
+        "frame": "obstacles12_rocks4",
+        "AP": 0.6585,
+        "F1": 0.795,
+        "anomaly_share": 0.063107
+      },
+      {
+        "frame": "cones02_Broadmoor_Manhole_Cones",
+        "AP": 0.6913,
+        "F1": 0.809,
+        "anomaly_share": 0.065629
+      },
+      {
+        "frame": "cones07",
+        "AP": 0.6882,
+        "F1": 0.8254,
+        "anomaly_share": 0.013697
+      },
+      {
+        "frame": "animals18_Goose_on_the_road_Memphis",
+        "AP": 0.9313,
+        "F1": 0.856,
+        "anomaly_share": 0.013012
+      },
+      {
+        "frame": "obstacles04_cardboard_czech_hedgehog",
+        "AP": 0.7662,
+        "F1": 0.8614,
+        "anomaly_share": 0.047529
+      },
+      {
+        "frame": "animals30",
+        "AP": 0.7673,
+        "F1": 0.8689,
+        "anomaly_share": 0.066438
+      },
+      {
+        "frame": "cones08_can",
+        "AP": 0.7888,
+        "F1": 0.879,
+        "anomaly_share": 0.020193
+      },
+      {
+        "frame": "lost_tires09",
+        "AP": 0.9495,
+        "F1": 0.8802,
+        "anomaly_share": 0.009926
+      },
+      {
+        "frame": "obstacles11_boulder5",
+        "AP": 0.8409,
+        "F1": 0.9019,
+        "anomaly_share": 0.227217
+      },
+      {
+        "frame": "cones05_Corner_of_Kingsley_Park",
+        "AP": 0.8219,
+        "F1": 0.9165,
+        "anomaly_share": 0.010967
+      },
+      {
+        "frame": "vehicle01_man_carrying_dry_grass_on_bicycle",
+        "AP": 0.8644,
+        "F1": 0.926,
+        "anomaly_share": 0.129524
+      },
+      {
+        "frame": "vehicle02_Broadmoor_Cones_Skidloader",
+        "AP": 0.8894,
+        "F1": 0.9366,
+        "anomaly_share": 0.099709
+      },
+      {
+        "frame": "animals11_Cock_Pheasant_on_Romford_Road",
+        "AP": 0.8843,
+        "F1": 0.939,
+        "anomaly_share": 0.009246
+      },
+      {
+        "frame": "animals17_E6_near_Kvaenangen",
+        "AP": 0.9354,
+        "F1": 0.9669,
+        "anomaly_share": 0.016235
+      },
+      {
+        "frame": "lost_tires08",
+        "AP": 0.9457,
+        "F1": 0.9723,
+        "anomaly_share": 0.003747
+      },
+      {
+        "frame": "obstacles10_boulder4",
+        "AP": 0.9582,
+        "F1": 0.9742,
+        "anomaly_share": 0.190521
+      },
+      {
+        "frame": "cones04_Federation",
+        "AP": 0.9511,
+        "F1": 0.9751,
+        "anomaly_share": 0.013124
+      },
+      {
+        "frame": "animals26_Unnamed_Road_Kazakhstan",
+        "AP": 0.963,
+        "F1": 0.9809,
+        "anomaly_share": 0.049135
+      },
+      {
+        "frame": "animals31_deer",
+        "AP": 0.9639,
+        "F1": 0.9816,
+        "anomaly_share": 0.057104
+      },
+      {
+        "frame": "animals02_Zagori_On_the_road_to_Papigko",
+        "AP": 0.9644,
+        "F1": 0.982,
+        "anomaly_share": 0.007992
+      },
+      {
+        "frame": "obstacles06_cardboard_czech_hedgehog",
+        "AP": 0.9728,
+        "F1": 0.9843,
+        "anomaly_share": 0.046476
+      },
+      {
+        "frame": "animals28",
+        "AP": 0.972,
+        "F1": 0.9857,
+        "anomaly_share": 0.080245
+      },
+      {
+        "frame": "obstacles05_cardboard_czech_hedgehog",
+        "AP": 0.976,
+        "F1": 0.9869,
+        "anomaly_share": 0.074065
+      },
+      {
+        "frame": "animals12_Collared_Peccary_crossing_the_road",
+        "AP": 0.9799,
+        "F1": 0.9889,
+        "anomaly_share": 0.130275
+      },
+      {
+        "frame": "obstacles08_boulder2",
+        "AP": 0.9783,
+        "F1": 0.989,
+        "anomaly_share": 0.013521
+      },
+      {
+        "frame": "obstacles09_boulder3",
+        "AP": 0.9816,
+        "F1": 0.9907,
+        "anomaly_share": 0.051404
+      },
+      {
+        "frame": "obstacles03_cardboard_czech_hedgehog",
+        "AP": 0.9842,
+        "F1": 0.9915,
+        "anomaly_share": 0.074018
+      },
+      {
+        "frame": "obstacles02_rock",
+        "AP": 0.986,
+        "F1": 0.9918,
+        "anomaly_share": 0.164517
+      }
+    ]
+  }
+]

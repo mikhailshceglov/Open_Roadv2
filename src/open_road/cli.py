@@ -30,6 +30,7 @@ from open_road.stages.evaluate import run_evaluate
 from open_road.stages.infer import run_infer
 from open_road.stages.render import run_render
 from open_road.stages.report import run_report
+from open_road.stages.video import run_video
 
 HELP = """The same five verbs for every method.
 
@@ -238,6 +239,9 @@ def run(
     save_intermediate: bool = typer.Option(
         True, help="Write the method's internal maps under intermediate/"
     ),
+    video_fps: float = typer.Option(
+        0.0, help="Also encode the overlays into an mp4 at this rate (0 = skip)"
+    ),
 ) -> None:
     """infer, then eval, then render at the operating point eval found.
 
@@ -269,11 +273,35 @@ def run(
     typer.echo(f"\n== render (threshold {threshold:.4f}) ==")
     run_render(spec, data, layout, threshold=threshold, mode=draw, report=typer.echo)
 
+    if video_fps > 0:
+        typer.echo(f"\n== video ==")
+        run_video(data, layout, fps=video_fps, report=typer.echo)
+
     typer.echo(f"\nrun      -> {layout.root}")
     typer.echo(f"overlays -> {layout.overlay}")
     typer.echo(f"masks    -> {layout.mask}")
     if summary.get("intermediate"):
         typer.echo(f"internals-> {layout.intermediate}")
+
+
+@app.command()
+def video(
+    method: str = METHOD_OPTION,
+    dataset: str = DATASET_OPTION,
+    fps: float = typer.Option(10.0, help="Playback rate of the encoded clip"),
+    source: str = typer.Option("overlay", help="overlay or mask"),
+    out: Optional[Path] = typer.Option(None, help="Destination .mp4"),
+) -> None:
+    """Encode a rendered clip back into a video, in the dataset's frame order."""
+    data = _load_dataset(dataset)
+    run_video(
+        data,
+        _layout(method, data.name),
+        fps=fps,
+        source=source,
+        destination=out,
+        report=typer.echo,
+    )
 
 
 @app.command()

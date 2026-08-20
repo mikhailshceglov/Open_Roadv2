@@ -14,6 +14,7 @@ shared stages read the description rather than assuming a convention.
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, Mapping
@@ -24,6 +25,20 @@ import yaml
 from open_road.paths import resolve_path
 
 IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
+
+
+def natural_key(path: Path) -> tuple:
+    """Sort ``frame2`` before ``frame10``, not after it.
+
+    Video datasets name frames by index with no zero padding, so plain
+    lexicographic order runs 0, 1, 10, 100, 11 — which silently scrambles a
+    clip into nonsense the moment it is encoded back into a video. Digit runs
+    compare as numbers, everything else case-insensitively as text.
+    """
+    return tuple(
+        int(part) if part.isdigit() else part.lower()
+        for part in re.split(r"(\d+)", path.stem)
+    )
 
 
 @dataclass(frozen=True)
@@ -90,7 +105,11 @@ class DatasetSpec:
         return path is not None and path.is_dir()
 
     def frames(self) -> list[Path]:
-        """Every frame, sorted, honouring ``pattern``."""
+        """Every frame in natural order, honouring ``pattern``.
+
+        The order is load-bearing for video datasets: it is the order the
+        overlays are encoded back in.
+        """
         directory = self.images_path
         if not directory.is_dir():
             raise FileNotFoundError(
@@ -98,15 +117,18 @@ class DatasetSpec:
                 f"Run the dataset's prepare script, or fix 'root' in its config."
             )
         return sorted(
-            path
-            for path in directory.iterdir()
-            # Skip dotfiles: macOS AppleDouble twins (._name) carry image
-            # extensions, so a suffix check alone lets them through and every
-            # imread on them returns None.
-            if path.is_file()
-            and not path.name.startswith(".")
-            and path.suffix.lower() in IMAGE_SUFFIXES
-            and self.pattern in path.stem
+            (
+                path
+                for path in directory.iterdir()
+                # Skip dotfiles: macOS AppleDouble twins (._name) carry image
+                # extensions, so a suffix check alone lets them through and every
+                # imread on them returns None.
+                if path.is_file()
+                and not path.name.startswith(".")
+                and path.suffix.lower() in IMAGE_SUFFIXES
+                and self.pattern in path.stem
+            ),
+            key=natural_key,
         )
 
     def label_path(self, stem: str) -> Path:

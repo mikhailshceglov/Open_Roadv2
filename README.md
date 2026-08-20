@@ -40,6 +40,27 @@ and an overlay to look at. Point `--input` at a folder to batch it.
 python3 infer.py --input frames/ --output out/ --short-side 736 --half
 ```
 
+Python 3.10–3.12. `--half` switches the forward pass to fp16 on CUDA or MPS;
+it is ignored on CPU, where half precision is emulated and slower.
+
+### As a library
+
+```python
+import cv2
+from infer import AnomalySegmenter
+
+segmenter = AnomalySegmenter("weights/student_final.pt", short_side=736)
+score = segmenter(cv2.imread("frame.jpg"))   # float32 [H, W] in [0, 1]
+```
+
+The output is a per-pixel anomaly probability at the resolution of the frame you
+passed in. It is a ranking, not a calibrated probability: AUPR and FPR@95 depend
+only on the ordering of pixels, and nothing in training pushed the values
+towards being read as literal probabilities. Choose a threshold on your own
+validation data, and drop connected components below a minimum area — on this
+benchmark that single post-processing choice moves component F1 by tens of
+points.
+
 **`transformers==4.44.2` is a hard pin.** SegFormer's internal module names
 changed in 5.x (`encoder.block` → `stages.blocks`), and the released weights
 will not load on the newer layout.
@@ -48,6 +69,30 @@ will not load on the newer layout.
 (`student/segformer_b0_cityscapes.json`), so nothing is downloaded at run time —
 the pretrained backbone would only be fetched to be overwritten by the
 checkpoint. Verified with `HF_HUB_OFFLINE=1` against an empty cache.
+
+## Reproducing the metrics
+
+```bash
+python3 metrics.py --dataset /path/to/dataset_ObstacleTrack
+python3 metrics.py --dataset /path/to/dataset_AnomalyTrack --short-side 1024 736 544
+```
+
+Self-contained — it needs the weights and a folder of labelled frames, nothing
+from the teacher or the cloud. It reports AUPR, FPR@95, AUROC and AP over all
+valid pixels pooled across frames, sweeps resolutions when given several, and
+lists the weakest frames so a regression has somewhere to point.
+
+Defaults assume the SegmentMeIfYouCan layout (`images/`, `labels_masks/`,
+`<stem>_labels_semantic.png`, 1 = anomaly, 255 = void). Every part of that is a
+flag, so other datasets are described rather than renamed:
+
+```bash
+python3 metrics.py --dataset /data/mine --images-dir rgb --labels-dir gt \
+    --label-suffix _mask.png --anomaly-value 255 --void-value 0 --pattern ""
+```
+
+`--best-f1` adds a threshold sweep when you need one operating point rather than
+a threshold-free ranking metric.
 
 ## Choosing `--short-side`
 
@@ -115,9 +160,9 @@ a corpus once, then the student trains on those maps.
 Each stage is idempotent: it writes a marker and is skipped on re-run, so a job
 that dies in training does not re-pay for labelling.
 
-Reproducing the labelling stage needs the [RAAS](https://github.com/jan-ackermann/Maskomaly)
-teacher and its Mask2Former Swin-L checkpoint; apply `patches/teacher.patch`
-first. It contains two fixes:
+Reproducing the labelling stage needs the RAAS teacher and its Mask2Former
+Swin-L checkpoint (`model_final_17c1ee.pkl` from the Mask2Former model zoo);
+apply `patches/teacher.patch` to the RAAS tree first. It contains two fixes:
 
 * the all-pairs query overlap loop in `maskomaly/model_*.py` is O(N²) over
   full-resolution masks. A pixel is zeroed exactly when two or more masks exceed
@@ -127,6 +172,25 @@ first. It contains two fixes:
 * `MSDeformAttn` raises unconditionally when its CUDA kernel is absent, which
   makes the model unimportable on any machine without it. It becomes a warning,
   falling back to the PyTorch implementation.
+
+### Training on your own frames
+
+The labelling stage walks `$DATA_ROOT/frames` recursively and treats every image
+it finds as corpus. Any frame whose name starts with `validation` is held out as
+benchmark and never enters training — the stage aborts if the count does not
+match what it expects, which is the guard against silently training on your own
+test set.
+
+```
+$DATA_ROOT/
+  frames/<any>/<any>.{png,jpg,jpeg,webp}   corpus to distil on
+  smiyc/dataset_AnomalyTrack/{images,labels_masks}
+  smiyc/dataset_ObstacleTrack/{images,labels_masks}
+  ckpt/model_final_17c1ee.pkl              teacher weights
+```
+
+Only `frames/` is needed for `label` and `train`; `smiyc/` is what `evaluate`
+scores against.
 
 ### Running it on Yandex DataSphere
 
@@ -158,6 +222,7 @@ Build for `linux/amd64`; the image will not build on an Apple-silicon laptop.
 
 ```
 infer.py               use the released weights
+metrics.py             AUPR / FPR@95 / AUROC against labelled frames
 profile_student.py     end-to-end latency, per step and per module
 config.yaml            DataSphere job spec
 Dockerfile             linux/amd64, CUDA 12.1 runtime
@@ -169,3 +234,21 @@ weights/               student_final.pt (14 MB)
 results/               measured metrics and latency reports
 patches/teacher.patch  fixes required on the RAAS side
 ```
+
+## Licence and credit
+
+The student weights and the code in this repository are released under the MIT
+licence (`LICENSE`).
+
+The pipeline stands on work that carries its own terms, and reproducing the
+teacher means accepting them:
+
+* [Maskomaly](https://github.com/jan-ackermann/Maskomaly) — the anomaly method the teacher implements
+* [Mask2Former](https://github.com/facebookresearch/Mask2Former) — teacher backbone, MIT
+* [detectron2](https://github.com/facebookresearch/detectron2) — Apache 2.0
+* [SegFormer](https://github.com/NVlabs/SegFormer) — student backbone, NVIDIA Source Code Licence; the pretrained Cityscapes weights come via HuggingFace
+* [CLIP](https://github.com/openai/CLIP) — used by the teacher's ID/OOD branch
+* [SegmentMeIfYouCan](https://github.com/SegmentMeIfYouCan/road-anomaly-benchmark) — benchmark and official evaluator
+
+Cityscapes, from which the student's backbone is pretrained, is free for
+academic and non-commercial use only. Check it before any commercial deployment.

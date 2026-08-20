@@ -1,0 +1,152 @@
+# RAAS + Objectomaly + semantic fusion.
+#
+# Needs $RAAS_ROOT, $OBJECTOMALY_ROOT and the SAM ViT-H checkpoint. See
+# methods/raas_sky_road/README.md for provenance of every weight file.
+#
+# Values carried over verbatim from the source branch's
+# configs/objectomaly_global_fusion.json, which are the ones that were measured.
+
+variant: maskomaly
+device: auto
+save_maps: true
+
+config_file: null
+checkpoint: null
+rejection_weight: 0.6
+road_query: 20
+analysis_file: null
+masks: 4
+
+sam:
+  variant: vit_h
+  checkpoint: null            # or $SAM_CHECKPOINT
+  checkpoint_md5: 4b8939a88964f0f4ff5f5b2642c598a6
+  # Denser and more permissive than the plain refinement config: this stage
+  # needs small regions to exist before it can protect them. The cost is real —
+  # SAM generate + postprocess was ~41 s/frame at these settings.
+  points_per_side: 64
+  pred_iou_thresh: 0.86
+  stability_score_thresh: 0.92
+
+postprocess:
+  q_min: 0.86                 # stricter than 0.7: fusion trusts region quality
+  area_min: 0
+  area_frac_min: 0.00002      # 25x smaller than the plain config, to keep specks
+  area_frac_max: 0.5
+  nms_iou: 0.7
+  partition: small_to_large
+
+oasc:
+  variant: quality_aware_residual_blending
+  params:
+    base_lambda: 0.5          # halved: fusion does part of the calibration now
+    alpha: 0.005
+    steepness: 20.0
+    max_lambda: 0.6
+    agg: trimmed_mean
+    trim: 0.1
+    use_quality: true
+    use_area: true
+    use_anomaly_support: true
+    use_overlap_penalty: true
+
+global_fusion:
+  enabled: true
+
+  # Per-class multipliers on the score. Nothing is hard-masked: a masked sky
+  # could never be argued back, and airborne debris is the case this branch
+  # exists for. Index order is Cityscapes: 0 road ... 10 sky ... 18 bicycle.
+  class_factors:
+    0: 1.0     # road       — never attenuated
+    1: 0.85    # sidewalk
+    2: 0.55    # building
+    3: 0.55    # wall
+    4: 0.65    # fence
+    5: 0.8     # pole
+    6: 0.9     # traffic light
+    7: 0.9     # traffic sign
+    8: 0.55    # vegetation — high-frequency noise, a big false-positive source
+    9: 0.65    # terrain
+    10: 0.35   # sky        — the heaviest attenuation in the table
+    11: 0.9    # person
+    12: 0.9    # rider
+    13: 0.9    # car
+    14: 0.9    # truck
+    15: 0.9    # bus
+    16: 0.9    # train
+    17: 0.9    # motorcycle
+    18: 0.9    # bicycle
+
+  road_class_ids: [0]
+  road_boost: 1.05            # lift road pixels against the ORIGINAL score
+
+  # WARNING: this lists all 19 classes, which makes the `semantic_object`
+  # protection rule unreachable — every dominant class is a background class, so
+  # only an empty mask could pass, and those are filtered earlier. Carried over
+  # unchanged because it is what the published numbers were measured with.
+  # Shortening this list is the first experiment to try.
+  background_class_ids: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]
+
+  candidates:
+    min_area_frac: 0.00002
+    max_area_frac: 0.03       # candidates are small by definition
+    score_quantile: 0.9       # a region's score is its 90th percentile
+    min_score: 0.45
+    min_contrast: 0.12        # region score minus its ring median
+    ring_radius: 9
+    max_candidates: 96
+    clip_probe_min_score: 0.05
+    # 0.0 means any region whose best OOD prompt merely beats its best normal
+    # prompt gets floored at 0.65. Combined with the low probe threshold this is
+    # what the source branch's own report blames for the AnomalyTrack PPV
+    # collapse (53.6 -> 22.6). Raising it is the second experiment to try.
+    clip_margin_threshold: 0.0
+    clip_candidate_floor: 0.65
+
+  clip:
+    enabled: true
+    model: ViT-B/32
+    implementation_commit: d50d76daa670286dd6cacf3bcd80b5e4823fc8e1
+    batch_size: 16
+    context_fraction: 0.15
+    mask_background: true
+    include_context_view: true
+    normal_prompts:
+      - an empty sky above a road
+      - clouds in the sky
+      - sun glare in the sky
+      - fog or haze above a highway
+      - street lights against the sky
+      - overhead wires above a road
+      - a normal highway sound barrier
+      - a normal roadside guardrail
+      - an empty road surface
+      - a normal road marking
+      - normal roadside vegetation
+      - a normal car driving on a road
+      - a normal truck driving on a road
+    # Six of these twelve are explicitly airborne — that is the "sky" half of
+    # the branch name, and the reason sky is attenuated rather than masked.
+    ood_prompts:
+      - a detached vehicle part flying through the air
+      - a tire flying above a road
+      - construction debris falling onto a road
+      - an object thrown from a moving vehicle
+      - airborne debris above a highway
+      - a solid foreign object in the sky above a road
+      - cargo falling from a truck
+      - an unknown obstacle flying toward the road
+      - debris lying on the road
+      - a lost vehicle part on the road
+      - construction material blocking a traffic lane
+      - an unknown solid obstacle on a road
+
+mbp:
+  variant: boundary_band_residual
+  # Gentler than the plain config across the board: fusion has already moved the
+  # score, and a wide boundary band would smear its restorations.
+  params:
+    dilation_radius: 1
+    gaussian_sigma: 0.7
+    gaussian_ksize: [5, 5]
+    lam: 0.25

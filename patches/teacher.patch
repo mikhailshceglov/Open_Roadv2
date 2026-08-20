@@ -1,0 +1,94 @@
+diff --git a/Mask2Former/mask2former/modeling/pixel_decoder/ops/functions/ms_deform_attn_func.py b/Mask2Former/mask2former/modeling/pixel_decoder/ops/functions/ms_deform_attn_func.py
+index 94a36ab..2daf202 100644
+--- a/Mask2Former/mask2former/modeling/pixel_decoder/ops/functions/ms_deform_attn_func.py
++++ b/Mask2Former/mask2former/modeling/pixel_decoder/ops/functions/ms_deform_attn_func.py
+@@ -13,6 +13,8 @@ from __future__ import absolute_import
+ from __future__ import print_function
+ from __future__ import division
+ 
++import warnings
++
+ import torch
+ import torch.nn.functional as F
+ from torch.autograd import Function
+@@ -20,13 +22,17 @@ from torch.autograd.function import once_differentiable
+ 
+ try:
+     import MultiScaleDeformableAttention as MSDA
+-except ModuleNotFoundError as e:
+-    info_string = (
+-        "\n\nPlease compile MultiScaleDeformableAttention CUDA op with the following commands:\n"
+-        "\t`cd mask2former/modeling/pixel_decoder/ops`\n"
+-        "\t`sh make.sh`\n"
++except ModuleNotFoundError:
++    # Warn instead of raising. MSDeformAttn.forward already falls back to
++    # ms_deform_attn_core_pytorch below when the CUDA op is unavailable, so the
++    # only thing this import error achieved was making the module unimportable
++    # on any machine without the compiled extension. The fallback costs roughly
++    # 2x in the pixel decoder and needs no nvcc.
++    warnings.warn(
++        "MultiScaleDeformableAttention CUDA op is not compiled; using the "
++        "PyTorch implementation. To build it: "
++        "cd mask2former/modeling/pixel_decoder/ops && sh make.sh"
+     )
+-    raise ModuleNotFoundError(info_string)
+ 
+ 
+ class MSDeformAttnFunction(Function):
+diff --git a/Maskomaly/maskomaly/model_id.py b/Maskomaly/maskomaly/model_id.py
+index 857ac00..a895e09 100644
+--- a/Maskomaly/maskomaly/model_id.py
++++ b/Maskomaly/maskomaly/model_id.py
+@@ -178,10 +178,10 @@ class Maskomaly(BaseSegmentationModel):
+ 
+         max_indices = np.argmax(mask_cls_result, axis=1)
+         positive = mask_pred_result[max_indices != 19.0]
+-        for i in range(positive.shape[0]):
+-            for j in range(i + 1, positive.shape[0]):
+-                overlap = np.logical_and(positive[i] > 0.1, positive[j] > 0.1)
+-                soft_mask = np.minimum(soft_mask, 1 - overlap.astype(np.float32))
++        # zero out any pixel covered by two or more positive masks; exact
++        # equivalent of the former all-pairs loop, at O(N) instead of O(N^2)
++        overlap_count = (positive > 0.1).sum(0)
++        soft_mask = np.minimum(soft_mask, (overlap_count < 2).astype(np.float32))
+ 
+         for i in [19, 24]:
+             conf = np.max(mask_cls_result[i])
+diff --git a/Maskomaly/maskomaly/model_ood.py b/Maskomaly/maskomaly/model_ood.py
+index 9992b4d..e390dde 100644
+--- a/Maskomaly/maskomaly/model_ood.py
++++ b/Maskomaly/maskomaly/model_ood.py
+@@ -184,10 +184,10 @@ class Maskomaly(BaseSegmentationModel):
+ 
+         max_indices = np.argmax(mask_cls_result, axis=1)
+         positive = mask_pred_result[max_indices != 19.0]
+-        for i in range(positive.shape[0]):
+-            for j in range(i + 1, positive.shape[0]):
+-                overlap = np.logical_and(positive[i] > 0.1, positive[j] > 0.1)
+-                soft_mask = np.minimum(soft_mask, 1 - overlap.astype(np.float32))
++        # zero out any pixel covered by two or more positive masks; exact
++        # equivalent of the former all-pairs loop, at O(N) instead of O(N^2)
++        overlap_count = (positive > 0.1).sum(0)
++        soft_mask = np.minimum(soft_mask, (overlap_count < 2).astype(np.float32))
+ 
+         for i in [19, 24]:
+             conf = np.max(mask_cls_result[i])
+diff --git a/Maskomaly/maskomaly/model_ori.py b/Maskomaly/maskomaly/model_ori.py
+index 9256e7c..f75fd72 100644
+--- a/Maskomaly/maskomaly/model_ori.py
++++ b/Maskomaly/maskomaly/model_ori.py
+@@ -119,10 +119,10 @@ class Maskomaly(BaseSegmentationModel):
+         positive = mask_pred_result[max_indices != 19.0]
+ 
+         # remove the borders of the non-void predictions up to epsilon=0.001
+-        for i in range(positive.shape[0]):
+-            for j in range(i + 1, positive.shape[0]):
+-                neg_border = np.clip((1 - np.logical_and(positive[i] > 0.1, positive[j] > 0.1)) + 0.0, 0, 1)
+-                soft_mask = np.minimum(neg_border, soft_mask)
++        # zero out any pixel covered by two or more positive masks; exact
++        # equivalent of the former all-pairs loop, at O(N) instead of O(N^2)
++        overlap_count = (positive > 0.1).sum(0)
++        soft_mask = np.minimum(soft_mask, (overlap_count < 2).astype(np.float32))
+ 
+         # fix the mislabeling of ground
+         for i in [19, 24]: # masks as ranked by importance for predicting ground by Cityscapes validation

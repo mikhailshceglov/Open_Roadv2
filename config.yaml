@@ -1,0 +1,27 @@
+name: raas-distill
+desc: Distil RAAS (Mask2Former Swin-L + CLIP) into a real-time SegFormer-B0 student
+cmd: /opt/raas/distill/entrypoint.sh
+env:
+  docker:
+    image: cr.yandex/<REGISTRY_ID>/raas-distill:0.1
+    username: iam
+    password:
+      secret-id: ycr-token
+  vars:
+    STAGES: label,train,eval,export
+    TEACHER: maskomaly_id
+    ITERS: '10000'
+    CROP: '768'
+    BATCH: '16'
+    WORKERS: '8'
+    DATA_ROOT: /data
+    OUT_ROOT: /out
+    S3_BUCKET: <YOUR_BUCKET>
+cloud-instance-types:
+- g2.1
+working-storage:
+  type: SSD
+  size: 200Gb
+graceful-shutdown:
+  signal: SIGTERM
+  timeout: 60s

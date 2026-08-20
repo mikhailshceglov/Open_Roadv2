@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.DS_Store
+out/
+outputs/
+*.npy
+*.onnx
+# Keep weights/student_final.pt: it is the point of the repository.
+weights/*.pt
+!weights/student_final.pt

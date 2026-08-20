@@ -1,0 +1,9 @@
+# Everything infer.py and profile_student.py need, and nothing else.
+#
+# transformers is pinned hard: SegFormer's internal module names changed in
+# 5.x (encoder.block -> stages.blocks), and the released weights will not load
+# on the new layout.
+torch>=2.1
+transformers==4.44.2
+opencv-python-headless>=4.8
+numpy>=1.24

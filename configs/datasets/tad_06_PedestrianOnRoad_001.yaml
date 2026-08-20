@@ -1,9 +1,8 @@
 # TAD (Traffic Anomaly Detection), abnormal clip 06_PedestrianOnRoad_001.
 #
 # TAD ships clips as folders of JPEG frames, not video files, so a clip is just
-# an unlabelled dataset. Frames are named by index with no zero padding, which
-# is why frame ordering is natural rather than lexicographic -- otherwise the
-# encoded video runs 0, 1, 10, 100, 11.
+# an unlabelled dataset. Frames are numbered without zero padding, which is why
+# frame ordering is natural rather than lexicographic.
 #
 # Extract from the release archive with:
 #   unzip -j tad.zip 'TAD/frames/abnormal/06_PedestrianOnRoad_001.mp4/*.jpg' -d data/tad/06_PedestrianOnRoad_001
@@ -12,7 +11,6 @@ name: tad_06_PedestrianOnRoad_001
 root: data/tad/06_PedestrianOnRoad_001
 images_dir: .
 
-# TAD labels clips as normal/abnormal at the clip level; there are no
-# per-pixel masks, so there is nothing to evaluate against here. These runs
-# produce pictures, not metrics.
+# TAD labels clips as normal/abnormal at the clip level; there are no per-pixel
+# masks, so there is nothing to evaluate against. These runs produce pictures.
 labels_dir: null

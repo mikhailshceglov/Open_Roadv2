@@ -1,14 +1,14 @@
-# TAD (Traffic Anomaly Detection), abnormal clip 07_RoadSpills_028.
+# TAD (Traffic Anomaly Detection), abnormal clip 04_Retrograde_008.
 #
 # TAD ships clips as folders of JPEG frames, not video files, so a clip is just
 # an unlabelled dataset. Frames are numbered without zero padding, which is why
 # frame ordering is natural rather than lexicographic.
 #
 # Extract from the release archive with:
-#   unzip -j tad.zip 'TAD/frames/abnormal/07_RoadSpills_028.mp4/*.jpg' -d data/tad/07_RoadSpills_028
+#   unzip -j tad.zip 'TAD/frames/abnormal/04_Retrograde_008.mp4/*.jpg' -d data/tad/04_Retrograde_008
 
-name: tad_07_RoadSpills_028
-root: data/tad/07_RoadSpills_028
+name: tad_04_Retrograde_008
+root: data/tad/04_Retrograde_008
 images_dir: .
 
 # TAD labels clips as normal/abnormal at the clip level; there are no per-pixel

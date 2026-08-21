@@ -6,6 +6,13 @@ anomaly segmentation.
 The teacher runs at **0.2–0.4 FPS**. The student is **3.72M parameters, 14 MB**,
 and matches or beats it on both SMIYC tracks.
 
+![The model's output and the mask made from it](images/distill-output.jpg)
+
+*Left is what the network actually returns: one sigmoid per pixel, 988 distinct
+values on this frame. Right is that map thresholded at the swept operating point.
+Only the left image is the method's output — the right one is the shared render
+stage.*
+
 | model | Anomaly AUPR / FPR@95 | Obstacle AUPR / FPR@95 | size |
 |---|---|---|---|
 | teacher `maskomaly` | 94.09 / 3.40 | 88.62 / 2.81 | ~215M params |
@@ -99,6 +106,11 @@ would put 1080p comfortably past 30 FPS.
 
 Raw measurements: `results/profile_a100.json`, `results/profile_m5.json`.
 
+![Three frames of a road-spill clip](images/distill-clip.jpg)
+
+*At 0.36 s/frame on a laptop this is the only method here fast enough to put
+through video. All 41 TAD clips ran; the mp4s sit beside the frames.*
+
 ## Architecture
 
 `student/model.py` — SegFormer-B0 with the classifier widened from 19 to 20
@@ -128,6 +140,13 @@ not vendored here; inference does not.
 * Latency: measured on A100-SXM4-80GB and Apple M5. **Not** measured on
   automotive hardware; an Orin figure would need an Orin.
 * The corpus is 572 frames.
+
+![Two frames it fails on](images/distill-failure.jpg)
+
+*Where it breaks, at the same threshold. Left: a scatter of rockfall, none of it
+found. Right: nothing reported at all. Both score 0.0% per-frame F1, and both are
+in `road_anomaly_sample`, which deliberately holds the best and worst frame of
+every category.*
 
 ## Licence and credit
 

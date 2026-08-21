@@ -18,6 +18,13 @@ image ──► SAM ──► postprocess ──┘
 
 Neither is implemented here — see [Licensing](#licensing).
 
+![The coarse map this method starts from](images/coarse-input.jpg)
+
+*Not this method's output — this method has never been run here. It is its
+**input**: the RAAS map that OASC recalibrates and MBP re-edges, produced by the
+`raas` branch on the same frame. The blob is exactly the problem the refinement
+exists to fix — the score is right, the boundary is a smear.*
+
 ## The environment split is not ported
 
 The source branch ran RAAS in python 3.8 / torch 1.9 and SAM in 3.10 / torch 2.1,

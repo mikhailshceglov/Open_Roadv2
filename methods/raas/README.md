@@ -60,11 +60,40 @@ established. Do not read the table as evidence that the OOD prompts do nothing �
 read it as an unresolved question. Comparing the two runs' stored maps directly
 is the obvious next step.
 
-Latency: **2.5–3.4 s/frame on an A100.** The dominant cost was an all-pairs loop
-over ~100 full-resolution masks; this port collapses it (see below), which should
-move that number, but it has not been measured here.
+Latency in the source: **2.5–3.4 s/frame on an A100.** The dominant cost was an
+all-pairs loop over ~100 full-resolution masks, which this port collapses (see
+below). Measured here at **3.23 s/frame on a laptop** — same order, on far less
+hardware.
 
-## This method cannot currently be run
+## Measured here: RoadAnomaly, 60 frames
+
+The port has been run. `maskomaly` on RoadAnomaly, scored by this repository's own
+evaluator, with the distilled student that was trained from it for comparison:
+
+| | AP | AUROC | FPR95 | F1 | s/frame |
+|---|---:|---:|---:|---:|---:|
+| `raas` (`maskomaly`) | 71.15 | 95.38 | **17.00** | **75.41** | 3.23 |
+| `raas_distill` | **75.59** | **96.36** | 19.06 | 73.85 | **0.36** |
+
+![The teacher beside its own student](images/raas-result.jpg)
+
+*The student wins by 4.4 AP and is nine times faster on the same frames under the
+same evaluator. The teacher keeps a better FPR95 and a slightly better pixel F1 —
+it is the more careful of the two at its operating point, and the worse ranker.*
+
+Two caveats. This is RoadAnomaly, **not** SMIYC, so it is not comparable to the
+quoted table above. And only `maskomaly` ran: `maskomaly_id` and `maskomaly_ood`
+need OpenAI CLIP, which would not install into the environment that has
+detectron2.
+
+![What the method computes internally](images/raas-internals.jpg)
+
+*Left, the elimination map before any thresholding — bright where no confident
+query claimed the pixel. Right, the Cityscapes semantics from the very same
+forward pass, kept because the fusion variants need them and a second backbone
+run would double the cost.*
+
+## Running it
 
 It needs the RAAS monorepo, which is a separate checkout and is not vendored:
 
@@ -96,12 +125,11 @@ maskformer2_swin_large_IN21k_384_bs16_90k/model_final_17c1ee.pkl \
 All three variants share it — `maskomaly_id` and `maskomaly_ood` have no weights
 of their own, differing only in CLIP prompts and post-processing.
 
-The numbers above are still quoted rather than reproduced: the checkpoint was
-not present when this port was written.
-
-Since the method could not be run, correctness rests on `tests/test_raas_maths.py`,
-which pins every formula against hand-made query tensors — including a check that
-the vectorised border rule is bit-identical to the original all-pairs loop.
+**The SMIYC table above is still quoted, not reproduced.** SMIYC's own frames are
+not present here, so the port was verified on RoadAnomaly instead, and separately
+by `tests/test_raas_maths.py`, which pins every formula against hand-made query
+tensors — including a check that the vectorised border rule is bit-identical to
+the original all-pairs loop.
 
 ## What this port changes
 

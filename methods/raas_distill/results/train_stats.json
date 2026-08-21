@@ -1,0 +1,7 @@
+{
+  "iterations": 10000,
+  "seconds_total": 9299.063001394272,
+  "frames": 572,
+  "crop": 768,
+  "batch": 16
+}

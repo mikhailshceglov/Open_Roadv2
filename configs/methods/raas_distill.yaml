@@ -1,0 +1,23 @@
+# RAAS-Distill inference settings. Passed to AnomalySegmenter as-is.
+
+# The one knob that matters. The two SMIYC tracks pull in opposite directions:
+# anomalies on AnomalyTrack are large, so downscaling removes noise and helps;
+# obstacles are tens of pixels across, so downscaling destroys them.
+#
+#   short side | Anomaly AUPR | Obstacle AUPR | A100 fp16, end to end
+#   1024       | 94.02        | 97.52         | 19.4 FPS
+#   736        | 95.18        | 95.67         | 36.6 FPS
+#   544        | 95.83        | 92.05         | 54.3 FPS
+#   384        | 95.02        | 83.56         | -
+#
+# 1024 if small obstacles matter, 736 for real time. Do not go below 544.
+short_side: 1024
+
+# auto picks cuda, then mps, then cpu.
+device: auto
+
+# fp16 forward. Ignored on CPU, where half precision is emulated and slower.
+half: false
+
+# Path to the checkpoint; relative paths hang off methods/raas_distill/.
+checkpoint: weights/student_final.pt

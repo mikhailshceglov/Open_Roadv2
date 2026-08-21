@@ -38,6 +38,12 @@ Examples of what that buys:
   shipped config are pinned as tests, including that shortening one list revives
   a rule that is currently unreachable.
 
+![The eight maps OoDDINO leaves behind](../docs/images/ooddino-stages.jpg)
+
+*What the tested arithmetic produces on a real frame. Each of these maps is one
+formula from `methods/ooddino/maths.py`, and every one of those formulas is pinned
+against hand-made tensors in `test_ooddino.py`.*
+
 Tests that describe a defect rather than a requirement say so in a comment. They
 exist so nobody has to rediscover it.
 

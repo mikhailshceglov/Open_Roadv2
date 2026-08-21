@@ -36,6 +36,11 @@ regions as 255, and counting those as negatives quietly inflates every score.
 Clip datasets (`tad_*`) set `labels_dir: null`. They carry clip-level labels
 only, so those runs produce pictures, not metrics.
 
+![Three frames of a TAD clip](../docs/images/tad-clip.jpg)
+
+*A clip dataset: no green outline anywhere, because there is no per-pixel ground
+truth to draw.*
+
 ## Methods
 
 One YAML per method, passed to its `build` callable as-is. Values here are the

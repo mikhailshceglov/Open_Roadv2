@@ -10,6 +10,12 @@ at all — if the skeleton needed to know about one, `main` would not run.
 score(image_bgr: np.ndarray) -> np.ndarray   # HxW float32, higher = more anomalous
 ```
 
+![One frame through the whole pipeline](../../docs/images/pipeline.jpg)
+
+*Everything after the second image is shared code. The method produced only that
+map; the mask, the components and the overlay are one threshold and one filter
+away, and both knobs are recorded in `regions.json`.*
+
 The methods disagree about score range, thresholds, dependencies, whether they
 train, and whether they output pixels or instances. They agree on one primitive.
 So the primitive is the seam, and **everything they disagree about becomes data

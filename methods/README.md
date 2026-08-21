@@ -15,6 +15,12 @@ main                 (this directory is empty)
 `git checkout <branch>` to get one. Each carries a README with its architecture,
 its numbers, and its known defects.
 
+![The same frame under three methods](../docs/images/three-methods.jpg)
+
+*The same frame under three of them. They share no code and cannot share a Python
+environment, yet the same evaluator scored all three — because only `infer` ever
+imports a method.*
+
 ## What a method directory holds
 
 ```

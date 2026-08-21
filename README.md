@@ -2,8 +2,11 @@
 
 Five road-anomaly segmentation methods, one pipeline, one set of metrics.
 
-<!-- ФОТО: обзорный кадр — оверлей на дороге с найденным препятствием.
-     Взять из runs/raas_distill/road_anomaly/render/overlay/obstacles09_boulder3.jpg -->
+![One frame through the whole pipeline](docs/images/pipeline.jpg)
+
+*One frame, left to right: the input, the model's own output, that map thresholded,
+and the overlay. Only the second image is what the network returned — everything
+after it is one threshold and one component filter away.*
 
 The methods here agree about almost nothing. One is a 3.7M-parameter student
 that runs in a third of a second; another chains three networks and takes a
@@ -56,8 +59,11 @@ A central `REGISTRY = {...}` in `main` would conflict on every single merge.
 Each has a README with its architecture, its measured numbers, its known
 defects, and what was verified versus what is quoted from elsewhere.
 
-<!-- ФОТО: сравнение методов на одном кадре — 2х2 или ряд.
-     Слева raas_distill, справа ooddino, из runs/*/road_anomaly/render/overlay/ -->
+![The same frame under three methods](docs/images/three-methods.jpg)
+
+*The same boulder under three methods, each scored by the same evaluator on the
+same 60 frames. The distilled student is both the most accurate and ten times the
+fastest; OoDDINO is precise but reports far less.*
 
 ### Reading the pictures
 
@@ -73,6 +79,15 @@ Every overlay uses the same four colours:
 Red and white are the model's answer; green is the correct one. Green with no
 red inside is a miss; red outside green is a false alarm. Unlabelled datasets
 (TAD) have no green — there is nothing to compare against.
+
+![Overlay colour key](docs/images/legend.png)
+
+![A clean hit and a total miss](docs/images/success-failure.jpg)
+
+*Left: prediction and ground truth almost coincide — 96.3% per-frame F1. Right: the
+green outline covers a scatter of rockfall and there is no red inside any of it,
+while three false alarms sit against the left edge. Same method, same threshold,
+0.0% F1.*
 
 ## Quick start
 
@@ -115,8 +130,10 @@ it. Re-render at a different threshold without re-running the model:
 open-road render --method raas_distill --dataset road_anomaly --threshold 0.6
 ```
 
-<!-- ФОТО: содержимое intermediate/ у ooddino — сетка из восьми карт стадий.
-     runs/ooddino/road_anomaly/intermediate/<кадр>/01..08 -->
+![The eight maps OoDDINO leaves behind](docs/images/ooddino-stages.jpg)
+
+*What a method can leave in `intermediate/`. These eight maps are OoDDINO's, one
+per stage of its cascade; the stage that emptied a frame is visible at a glance.*
 
 ## Metrics
 
@@ -204,8 +221,10 @@ done
 anomaly label from 2 to 1. Dataset YAML understands `$VARS`, so paths can point
 outside the repository.
 
-<!-- ФОТО: кадры TAD — ряд из трёх категорий (RoadSpills, PedestrianOnRoad, Accident).
-     runs/raas_distill/tad_*/render/overlay/ -->
+![Three frames of a TAD clip](docs/images/tad-clip.jpg)
+
+*Three frames of one TAD clip. There is no green outline because TAD has no
+per-pixel labels — those runs produce pictures, not metrics.*
 
 ## Licence
 

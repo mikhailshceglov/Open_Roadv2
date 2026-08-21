@@ -56,6 +56,13 @@ Colours: red fill for the predicted mask, white for its contour, yellow for each
 component's box and mean score, green for ground truth. `--draw` picks `seg`,
 `boxes` or `both`.
 
+![Overlay colour key](../../../docs/images/legend.png)
+
+![A clean hit and a total miss](../../../docs/images/success-failure.jpg)
+
+*Red and white are the model's answer, green is the correct one. Green with no red
+inside it is a miss; red outside green is a false alarm.*
+
 ## video
 
 A clip is a folder of frames, so it is already a dataset; this only puts the

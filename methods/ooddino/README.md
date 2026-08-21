@@ -25,6 +25,13 @@ image
                                  SAM 2.1 (box prompt) → instances
 ```
 
+![What it reports, and what it does not](images/ooddino-result.jpg)
+
+*Both halves of this method in one strip. Left: when the detector fires, precision
+is genuinely good — 78.3% pixel precision, above the dense baseline. Right: the
+detector returned no boxes at all, so nothing could be reported however anomalous
+the pixel branch believed the frame was.*
+
 ## The branches are not symmetric
 
 This is the thing to understand before reading any number this method produces.
@@ -132,6 +139,14 @@ runs/ooddino/road_anomaly/intermediate/<frame>/
 Heatmaps are min-max normalised per image — worth looking at, worthless for
 measuring. `stages.json` is where the answer to "why did this frame produce
 nothing" lives.
+
+![The eight maps, one per stage](images/ooddino-stages.jpg)
+
+*Every dense intermediate for one frame. Reading left to right and top to bottom
+is reading the cascade: the two uncertainty maps, the prior they fuse into, the
+class-conditional score, its per-region normalisation, the detector's gate, the
+soft probability and the binary decision. `06_foreground` is the one to check
+first — if it is empty, nothing downstream can report anything.*
 
 ## Where it stands
 

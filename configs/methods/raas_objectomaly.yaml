@@ -1,0 +1,66 @@
+# RAAS + Objectomaly refinement.
+#
+# Needs two external checkouts: $RAAS_ROOT and $OBJECTOMALY_ROOT, plus the SAM
+# ViT-H checkpoint ($SAM_CHECKPOINT). See methods/raas_objectomaly/README.md.
+#
+# Values carried over from the source branch's configs/objectomaly_smiyc.json,
+# which are the upstream Objectomaly defaults.
+
+variant: maskomaly
+device: auto
+save_maps: true
+
+# false runs RAAS alone, which is the honest baseline to diff against — the
+# whole question about this method is whether the refinement pays for itself.
+refine: true
+
+# RAAS half. Null means $RAAS_ROOT-relative defaults; see configs/methods/raas.yaml.
+config_file: null
+checkpoint: null
+rejection_weight: 0.6
+road_query: 20
+analysis_file: null
+masks: 4
+
+sam:
+  variant: vit_h
+  # Or set $SAM_CHECKPOINT. The digest is verified on load: SAM ships several
+  # checkpoints with similar names, and the wrong one degrades results silently.
+  checkpoint: null
+  checkpoint_md5: 4b8939a88964f0f4ff5f5b2642c598a6
+  # SAM generate + postprocess was ~41 s/frame at these settings on an A100 —
+  # about two thirds of the whole pipeline. Halving points_per_side is the first
+  # thing to try if that matters.
+  points_per_side: 32
+  pred_iou_thresh: 0.88
+  stability_score_thresh: 0.95
+
+postprocess:
+  q_min: 0.7
+  area_min: 0
+  area_frac_min: 0.0005
+  area_frac_max: 0.5
+  nms_iou: 0.7
+  partition: small_to_large
+
+# Object-Aware Score Calibration: rescore each SAM region against its own
+# statistics. Implemented in $OBJECTOMALY_ROOT, not here.
+oasc:
+  variant: quality_aware_residual_blending
+  params:
+    base_lambda: 1.0
+    alpha: 0.02
+    steepness: 20.0
+    use_quality: true
+    use_area: true
+    use_anomaly_support: true
+    use_overlap_penalty: true
+
+# Mask-Boundary Precision: rewrite the residual in a band around each boundary.
+mbp:
+  variant: boundary_band_residual
+  params:
+    dilation_radius: 3
+    gaussian_sigma: 1.0
+    gaussian_ksize: [7, 7]
+    lam: 0.5

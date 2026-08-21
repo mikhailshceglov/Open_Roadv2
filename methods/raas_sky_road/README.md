@@ -9,6 +9,13 @@ RAAS ──► OASC ──► global fusion ──► MBP ──► refined
         compact SAM regions argue their score back
 ```
 
+![The coarse map and the semantics fusion keys on](images/coarse-input.jpg)
+
+*Not this method's output — it has never been run here. These are its two inputs,
+both from the `raas` branch on one frame: left the anomaly map, right the
+Cityscapes semantics that decide every class factor. Every bright pixel on the
+left that sits on sky or vegetation on the right is what fusion attenuates.*
+
 ## The idea
 
 A road-scene anomaly detector wastes most of its false positives on classes that

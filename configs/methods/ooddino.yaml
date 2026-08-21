@@ -1,0 +1,74 @@
+# OoDDINO. Values carried over from the prototype's configs/ooddino.yaml, which
+# differ substantially from the code defaults it shipped alongside -- these are
+# the ones that were actually measured.
+
+# What the dense score returned to the skeleton represents:
+#   instances    the pipeline's real output, rasterised (SAM included)
+#   probability  the ADT soft probability, before instance filtering and SAM
+#   residual     the pixel branch alone, detector and SAM bypassed
+score_source: instances
+
+device: auto
+
+# Reuse an existing HuggingFace cache instead of fetching ~2 GB again.
+# Leave null and export $HF_HOME instead to keep machine paths out of git.
+weights_dir: null
+
+# Write every intermediate map under runs/<method>/<dataset>/intermediate/.
+save_maps: true
+
+prompt: "anomaly . unknown object . obstacle . debris ."
+
+# Minimum ARNS mean for a blob to be reported.
+min_confidence: 0.6
+
+detector:
+  model_id: IDEA-Research/grounding-dino-base
+  box_threshold: 0.25
+  text_threshold: 0.25
+  # 0 disables the per-frame rank cut. An absolute box threshold cannot serve
+  # both a frame whose best object scores 0.18 and one whose noise scores 0.32,
+  # so this is worth revisiting if the detector floods.
+  top_k: 0
+
+pixel:
+  model_id: nvidia/segformer-b2-finetuned-cityscapes-1024-1024
+  # energy | entropy | class_residual
+  score: class_residual
+
+ouafs:
+  # The prototype's sweep found this saturates: 0.25, 0.2 and 0.1 all gave the
+  # same IoU, so at 0.3 the filter is close to inert.
+  prior_threshold: 0.3
+  # With this on, a pixel outside every surviving proposal cannot be reported at
+  # all. It is the single biggest structural limit of the architecture: a frame
+  # where the detector fires nothing is an unrecoverable miss.
+  require_foreground: true
+  min_foreground_overlap: 0.5
+
+adt:
+  # ARNS output spans [alpha, alpha + 0.5], so alpha 0.5 means [0.5, 1.0].
+  alpha: 0.5
+  # Ramp width. Softens the reported probability only; the binary decision is
+  # unchanged by it.
+  delta: 0.2
+  # Lenient inside proposals, severe outside: almost everything in a box passes,
+  # only the top 0.5% outside one does.
+  fg_quantile: 0.2
+  bg_quantile: 0.995
+  min_gap: 0.2
+  min_blob_area: 100
+  max_blob_area_frac: 0.4
+  suppress_nested: true
+  containment: 0.8
+
+sam:
+  # Measured at -11.7 F1 on RoadAnomaly in the prototype: it sharpens a lone
+  # obstacle and destroys a herd, because one component is one box is one
+  # prompt and SAM returns one sheep out of eight. Left on to match the
+  # configuration the prototype's numbers came from; turn it off to compare.
+  enabled: true
+  model_id: facebook/sam2.1-hiera-large
+  box_pad: 0.05
+  min_area_frac: 0.05
+  max_area_frac: 0.98

@@ -1,0 +1,17 @@
+# SAM 2.1 needs transformers >= 4.51 (Sam2Model / Sam2Processor landed there).
+#
+# This is flatly incompatible with methods/raas_distill, which pins
+# transformers==4.44.2 because the SegFormer module names changed in 5.x and
+# its released checkpoint will not load on the newer layout. The two methods
+# cannot share an environment, which is the reason render, eval and report in
+# the skeleton never import a method.
+
+torch>=2.1
+transformers>=4.51
+pillow>=10.0
+
+# The three checkpoints total ~1.96 GB:
+#   IDEA-Research/grounding-dino-base                            891 MB
+#   nvidia/segformer-b2-finetuned-cityscapes-1024-1024           209 MB
+#   facebook/sam2.1-hiera-large                                  856 MB
+# Set weights_dir in configs/methods/ooddino.yaml to reuse an existing cache.

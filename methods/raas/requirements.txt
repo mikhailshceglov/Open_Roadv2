@@ -1,0 +1,19 @@
+# Only what pip can install. The rest is a separate checkout -- see README.
+#
+# The original pinned torch 1.9 / python 3.8 via conda. That pinning is
+# historical: detectron2 0.6 builds against modern torch, and this method has no
+# other constraint, so no version ceiling is imposed here.
+
+torch>=2.1
+pillow>=10.0
+
+# The _id and _ood variants only. Note the PyPI package named `clip` is
+# unrelated and will shadow this one -- uninstall it first.
+#   pip install git+https://github.com/openai/CLIP.git
+#
+# NOT installable from PyPI, and NOT vendored here:
+#   * detectron2, built from source inside $RAAS_ROOT with `pip install -e .`
+#     (never `pip install detectron2`)
+#   * Mask2Former and Maskomaly's patched detectron2 predictor, both in $RAAS_ROOT
+#   * Maskomaly/maskomaly/ckpt/model_final_17c1ee.pkl -- the Cityscapes Swin-L
+#     checkpoint. No branch of this project records a URL or hash for it.
